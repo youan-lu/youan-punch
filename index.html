@@ -57,7 +57,6 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
 .seg.on{background:#0C447C;color:#fff;border-color:#0C447C}
 .big-btn{width:100%;padding:16px;border-radius:12px;border:none;cursor:pointer;font-size:17px;font-weight:700;margin-top:12px;color:#fff;background:#0C447C}
 .big-btn-green{background:#1E8449}
-.big-btn-red{background:#A93226}
 .big-btn-amber{background:#BA7517}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .item{padding:12px;border-radius:10px;border:1px solid #D6EAF8;margin-bottom:8px;background:#F8FBFE}
@@ -76,12 +75,10 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
 .time-btn{padding:8px 12px;border-radius:20px;border:2px solid #AED6F1;font-size:13px;cursor:pointer;background:#fff;font-weight:600;color:#444}
 .time-btn.on{background:#0C447C;color:#fff;border-color:#0C447C}
 .punch-edit-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;border:1px solid #D6EAF8;margin-bottom:8px;background:#F8FBFE}
-.punch-edit-info{font-size:14px;color:#333}
 .punch-edit-btns{display:flex;gap:6px}
 </style>
 </head>
 <body>
-
 <div id="homePage">
   <div class="hdr">
     <h1>🏥 佑安打卡系統</h1>
@@ -127,11 +124,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
   <div class="card">
     <div class="card-title">📋 申請請假</div>
     <label>假別</label>
-    <select id="leaveType">
-      <option>特休</option><option>補休</option><option>加班補休</option>
-      <option>結存休</option><option>病假</option><option>事假</option>
-      <option>國定假日</option><option>其他</option>
-    </select>
+    <select id="leaveType"><option>特休</option><option>補休</option><option>加班補休</option><option>結存休</option><option>病假</option><option>事假</option><option>國定假日</option><option>其他</option></select>
     <label>請假日期</label><input type="date" id="leaveDate">
     <label>請假時段</label>
     <div class="seg-wrap" id="durSegs">
@@ -186,7 +179,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
   <div class="back" onclick="goHome()">← 返回首頁</div>
   <div class="card">
     <div class="card-title">🔄 補打卡申請</div>
-    <p style="font-size:13px;color:#1E8449;background:#D5F5E3;padding:8px 12px;border-radius:8px;margin-bottom:4px">✅ 補打卡送出後立即生效，試算表狀態顯示「補登」</p>
+    <p style="font-size:13px;color:#1E8449;background:#D5F5E3;padding:8px 12px;border-radius:8px;margin-bottom:4px">✅ 補打卡送出後立即生效，試算表顯示「補登」</p>
     <label>補打日期</label><input type="date" id="mkDate">
     <div class="grid2">
       <div><label>🟢 上班時間</label><input type="time" id="mkInTime"></div>
@@ -228,26 +221,22 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
     </div>
   </div>
   <div id="adminPanel" style="display:none">
-    <!-- 修改打卡記錄 -->
     <div class="card">
       <div class="card-title">✏️ 修改打卡記錄</div>
-      <label>員工</label><select id="editEmpSel" onchange="loadEmpPunchForEdit()"></select>
-      <label>日期</label><input type="date" id="editDate" onchange="loadEmpPunchForEdit()">
+      <label>員工</label><select id="editEmpSel" onchange="loadEditPunch()"></select>
+      <label>日期</label><input type="date" id="editDate" onchange="loadEditPunch()">
       <div id="editPunchList" style="margin-top:12px"></div>
     </div>
-    <!-- 員工名單 -->
     <div class="card">
       <div class="card-title">👥 員工名單</div>
       <div id="empList"></div>
     </div>
-    <!-- 新增員工 -->
     <div class="card">
       <div class="card-title">➕ 新增員工</div>
       <label>職稱</label><input type="text" id="newDept" placeholder="例：行政人員">
       <label>姓名</label><input type="text" id="newName" placeholder="例：王小明">
       <button class="big-btn" onclick="addEmp()">✓ 新增員工</button>
     </div>
-    <!-- 補打卡單日 -->
     <div class="card">
       <div class="card-title">🔄 補打卡（單日）</div>
       <label>員工</label><select id="adminEmpSel"></select>
@@ -258,7 +247,6 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
       </div>
       <button class="big-btn big-btn-green" onclick="adminSinglePunch()">✓ 補打卡</button>
     </div>
-    <!-- 批次補打卡 -->
     <div class="card">
       <div class="card-title">📆 批次補打卡（整週）</div>
       <label>員工</label><select id="batchEmpSel"></select>
@@ -279,12 +267,10 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
       </div>
       <button class="big-btn big-btn-amber" onclick="adminBatchPunch()">📆 批次補打卡</button>
     </div>
-    <!-- 待審核請假 -->
     <div class="card">
       <div class="card-title">📋 待審核請假 <span id="lvCount" style="color:#A04000"></span></div>
       <div id="reviewLeave"></div>
     </div>
-    <!-- 待審核加班 -->
     <div class="card">
       <div class="card-title">⏰ 待審核加班 <span id="otCount" style="color:#A04000"></span></div>
       <div id="reviewOT"></div>
@@ -294,11 +280,10 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
     </div>
   </div>
 </div>
-
 <div class="toast" id="toast"></div>
 
 <script>
-const SURL='https://script.google.com/macros/s/AKfycbxDCPZIpZNS14dxD2cumVdGgdP_Y6SrjIrxIjIG6nihnjwtx1fHxbTZCEe-LwhC5Xwt/exec';
+const SURL='https://script.google.com/macros/s/AKfycby7sJ9kkBp-4LTSzPCyQykzjS-QSb1egYAxSEQSy_VTpHE93S4Ax6RPHxri95ZTWZcP/exec';
 const ADMIN='0000';
 const DEF=[
   {name:'駱潔明',dept:'業務負責人'},{name:'蒲麗玉',dept:'行政人員'},
@@ -306,11 +291,59 @@ const DEF=[
   {name:'劉怡伶',dept:'居服督導員'},{name:'林一龍',dept:'居服督導員'},
   {name:'蒲辰宣',dept:'行政人員'}
 ];
-let cd={punch:[],leave:[],overtime:[],employees:[]};
-let EMPS=JSON.parse(localStorage.getItem('emps_v7')||JSON.stringify(DEF));
+
+// 本機儲存 key
+const LS_EMPS='emps_v8';
+const LS_PUNCH='punch_v8';
+const LS_LEAVE='leave_v8';
+const LS_OT='ot_v8';
+
+// 本機資料
+let localPunch=JSON.parse(localStorage.getItem(LS_PUNCH)||'[]');
+let localLeave=JSON.parse(localStorage.getItem(LS_LEAVE)||'[]');
+let localOT=JSON.parse(localStorage.getItem(LS_OT)||'[]');
+let EMPS=JSON.parse(localStorage.getItem(LS_EMPS)||JSON.stringify(DEF));
+
+// 雲端資料
+let cloudPunch=[];
+let cloudLeave=[];
+let cloudOT=[];
+
+// 合併後資料（本機優先，去重複）
+function getMergedPunch(){
+  const all=[...cloudPunch];
+  // 加入本機有但雲端沒有的
+  localPunch.forEach(lp=>{
+    const exists=all.some(cp=>
+      cp.name===lp.name&&String(cp.date)===String(lp.date)&&cp.type===lp.type&&cp.time===lp.time
+    );
+    if(!exists)all.push(lp);
+  });
+  return all;
+}
+
+function getMergedLeave(){
+  const all=[...cloudLeave];
+  localLeave.forEach(ll=>{
+    const exists=all.some(cl=>String(cl.id)===String(ll.id));
+    if(!exists)all.push(ll);
+  });
+  return all;
+}
+
+function getMergedOT(){
+  const all=[...cloudOT];
+  localOT.forEach(lo=>{
+    const exists=all.some(co=>String(co.id)===String(lo.id));
+    if(!exists)all.push(lo);
+  });
+  return all;
+}
+
 let selEmp=null,selDur='全天',selOTType='平常日',selOTCalc='加班費';
 let selOTStart='',selOTEnd='';
 let batchDays=new Set(['1','2','3','4','5']);
+
 const now=new Date();
 const today=`${now.getFullYear()}-${p2(now.getMonth()+1)}-${p2(now.getDate())}`;
 const WD=['日','一','二','三','四','五','六'];
@@ -322,7 +355,7 @@ document.getElementById('headerDate').textContent=
   const el=document.getElementById(id);if(el)el.value=today;
 });
 
-// 加班時間
+// 加班時間選項
 const MT=['06:00','06:30','07:00','07:30','08:00'];
 const ET=['18:00','18:30','19:00','19:30','20:00'];
 const HT=['06:00','06:30','07:00','07:30','08:00','08:30','09:00','09:30',
@@ -335,15 +368,15 @@ function renderOTTimes(){
   const times=isH?HT:[...MT,...ET];
   selOTStart='';selOTEnd='';
   document.getElementById('otHoursDisplay').textContent='';
-  ['otStartSel','otEndSel'].forEach(id=>{
+  ['otStartSel','otEndSel'].forEach((id,idx)=>{
     const w=document.getElementById(id);w.innerHTML='';
-    times.forEach((t,i)=>{
+    times.forEach(t=>{
       const b=document.createElement('div');
       b.className='time-btn';b.textContent=t;b.dataset.v=t;
       b.onclick=()=>{
         w.querySelectorAll('.time-btn').forEach(x=>x.classList.remove('on'));
         b.classList.add('on');
-        if(id==='otStartSel')selOTStart=t;else selOTEnd=t;
+        if(idx===0)selOTStart=t;else selOTEnd=t;
         calcOTDisplay();
       };
       w.appendChild(b);
@@ -374,19 +407,28 @@ function getOTHours(){
   return(mins/60).toFixed(1);
 }
 
+function saveLoc(){
+  localStorage.setItem(LS_PUNCH,JSON.stringify(localPunch));
+  localStorage.setItem(LS_LEAVE,JSON.stringify(localLeave));
+  localStorage.setItem(LS_OT,JSON.stringify(localOT));
+  localStorage.setItem(LS_EMPS,JSON.stringify(EMPS));
+}
+
 function loadCloud(cb){
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'getData'})})
     .then(r=>r.json()).then(d=>{
       if(d.success){
-        cd=d;
+        cloudPunch=d.punch||[];
+        cloudLeave=d.leave||[];
+        cloudOT=d.overtime||[];
         if(d.employees&&d.employees.length){
           EMPS=d.employees.map(e=>({name:e.name,dept:e.dept}));
-          localStorage.setItem('emps_v7',JSON.stringify(EMPS));
+          localStorage.setItem(LS_EMPS,JSON.stringify(EMPS));
         }
       }
       buildSels();updPanel();updPend();
       if(cb)cb();
-    }).catch(()=>{buildSels();if(cb)cb();});
+    }).catch(()=>{buildSels();updPanel();updPend();if(cb)cb();});
 }
 loadCloud();
 
@@ -420,7 +462,7 @@ setInterval(()=>{
 
 function getTodayRec(){
   if(!selEmp)return{};
-  const recs=cd.punch.filter(r=>r.name===selEmp&&String(r.date)===today);
+  const recs=getMergedPunch().filter(r=>r.name===selEmp&&String(r.date)===today);
   const result={};
   recs.forEach(r=>{
     if(r.type==='上班'&&!result.in)result.in=r.time;
@@ -460,7 +502,8 @@ function updPanel(){
     document.getElementById('workHour').textContent=`工時 ${wh}h${ot}`;
   }else document.getElementById('workHour').textContent='';
   const st=document.getElementById('punchStatus');
-  const onLv=cd.leave.find(l=>l.name===selEmp&&l.date===today&&(l.status==='已核准'||l.status==='自動核准'));
+  const lv=getMergedLeave();
+  const onLv=lv.find(l=>l.name===selEmp&&l.date===today&&(l.status==='已核准'||l.status==='自動核准'));
   if(onLv)st.innerHTML='<span class="s-badge b-leave">📋 今日請假中</span>';
   else if(rec.late)st.innerHTML='<span class="s-badge b-late">⚠️ 遲到記錄</span>';
   else if(rec.in)st.innerHTML='<span class="s-badge b-ok">✅ 正常出勤</span>';
@@ -473,9 +516,11 @@ function punch(type){
   const ts=`${p2(d.getHours())}:${p2(d.getMinutes())}`;
   const late=type==='in'&&(d.getHours()>8||(d.getHours()===8&&d.getMinutes()>40));
   const emp=EMPS.find(e=>e.name===selEmp)||{};
-  cd.punch.push({name:selEmp,dept:emp.dept||'',date:today,type:type==='in'?'上班':'下班',time:ts,status:late?'遲到':'正常'});
+  const rec={name:selEmp,dept:emp.dept||'',date:today,type:type==='in'?'上班':'下班',time:ts,status:late?'遲到':'正常'};
+  localPunch.push(rec);saveLoc();
   updPanel();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'punch',name:selEmp,dept:emp.dept||'',type})}).catch(()=>toast('⚠️ 網路不穩，請稍後確認'));
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'punch',name:selEmp,dept:emp.dept||'',type})})
+    .catch(()=>toast('⚠️ 網路不穩，資料已存本機'));
   toast(`${selEmp} ${type==='in'?'上班':'下班'}打卡成功 ${ts}`);
 }
 
@@ -491,8 +536,8 @@ function selSeg(btn,g){
 
 function toggleDay(btn){
   btn.classList.toggle('on');
-  const v=btn.dataset.v;
-  if(btn.classList.contains('on'))batchDays.add(v);else batchDays.delete(v);
+  if(btn.classList.contains('on'))batchDays.add(btn.dataset.v);
+  else batchDays.delete(btn.dataset.v);
 }
 
 function submitLeave(){
@@ -503,8 +548,8 @@ function submitLeave(){
   if(!date){toast('請選擇日期');return;}
   const emp=EMPS.find(e=>e.name===selEmp)||{};
   const id=new Date().toISOString();
-  cd.leave.push({id,name:selEmp,dept:emp.dept||'',type,date,duration:selDur,reason,status:'待審核'});
-  updPend();
+  const req={id,name:selEmp,dept:emp.dept||'',type,date,duration:selDur,reason,status:'待審核'};
+  localLeave.push(req);saveLoc();updPend();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'leave',id,name:selEmp,dept:emp.dept||'',leaveType:type,date,duration:selDur,reason})}).catch(()=>{});
   toast(`${selEmp} 請假申請已送出 ✅`);
   document.getElementById('leaveReason').value='';
@@ -520,8 +565,8 @@ function submitOT(){
   if(parseFloat(hours)<=0){toast('結束時間需晚於開始時間');return;}
   const emp=EMPS.find(e=>e.name===selEmp)||{};
   const id=new Date().toISOString();
-  cd.overtime.push({id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,calcType:selOTCalc,reason,status:'待審核'});
-  updPend();
+  const req={id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,calcType:selOTCalc,reason,status:'待審核'};
+  localOT.push(req);saveLoc();updPend();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'overtime',id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,calcType:selOTCalc,reason})}).catch(()=>{});
   toast(`${selEmp} 加班申請已送出 ✅`);
   document.getElementById('otReason').value='';
@@ -537,11 +582,19 @@ function submitMakeup(){
   if(!inTime&&!outTime){toast('請至少填一個時間');return;}
   if(!reason){toast('請填寫漏打原因');return;}
   const emp=EMPS.find(e=>e.name===selEmp)||{};
-  if(inTime)cd.punch.push({name:selEmp,dept:emp.dept||'',date,type:'上班',time:inTime,status:'補登'});
-  if(outTime)cd.punch.push({name:selEmp,dept:emp.dept||'',date,type:'下班',time:outTime,status:'補登'});
-  updPanel();
+  if(inTime){
+    const r={name:selEmp,dept:emp.dept||'',date,type:'上班',time:inTime,status:'補登'};
+    localPunch.push(r);
+  }
+  if(outTime){
+    const r={name:selEmp,dept:emp.dept||'',date,type:'下班',time:outTime,status:'補登'};
+    localPunch.push(r);
+  }
+  saveLoc();updPanel();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'makeup',name:selEmp,dept:emp.dept||'',date,inTime,outTime,reason})}).catch(()=>{});
   toast(`${selEmp} 補打卡已生效 ✅`);
+  document.getElementById('mkInTime').value='';
+  document.getElementById('mkOutTime').value='';
   document.getElementById('mkReason').value='';
   document.getElementById('mkInTime').value='';
   document.getElementById('mkOutTime').value='';
@@ -551,8 +604,8 @@ function goPage(p){
   document.getElementById('homePage').style.display='none';
   document.querySelectorAll('.sub').forEach(x=>x.classList.remove('on'));
   document.getElementById('page-'+p).classList.add('on');
-  if(p==='record')loadCloud(()=>renRec());
-  if(p==='leaveRec')loadCloud(()=>renLvRec());
+  if(p==='record')renRec();
+  if(p==='leaveRec')renLvRec();
   if(p==='admin'&&localStorage.getItem('adm')==='1')showAdm();
 }
 
@@ -564,13 +617,13 @@ function goHome(){
 
 function renRec(){
   const c=document.getElementById('recordList');
-  const all=cd.punch.filter(r=>!selEmp||r.name===selEmp);
+  const all=getMergedPunch().filter(r=>!selEmp||r.name===selEmp);
   const sorted=[...all].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   if(!sorted.length){c.innerHTML='<p class="loading">尚無打卡記錄</p>';return;}
   const stColor={'正常':'#1E8449','遲到':'#A04000','補登':'#6C3483','管理員補打':'#185FA5','批次補打':'#185FA5','管理員修改':'#854F0B'};
   c.innerHTML=sorted.slice(0,50).map(r=>`
     <div class="item">
-      <div class="item-name">${r.dept}｜${r.name} <span style="font-size:11px;color:#aaa">${r.date}</span></div>
+      <div class="item-name">${r.dept||''}｜${r.name} <span style="font-size:11px;color:#aaa">${r.date}</span></div>
       <div class="item-detail">${r.type==='上班'?'🟢':'🔴'} ${r.type} ${r.time}
         <span style="color:${stColor[r.status]||'#888'};font-weight:700;font-size:12px;margin-left:6px">${r.status}</span>
       </div>
@@ -579,13 +632,15 @@ function renRec(){
 
 function renLvRec(){
   const c=document.getElementById('leaveRecList');
-  const all=[...cd.leave.map(l=>({...l,kind:'請假'})),...cd.overtime.map(o=>({...o,kind:'加班'}))]
-    .filter(x=>!selEmp||x.name===selEmp).sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+  const all=[
+    ...getMergedLeave().map(l=>({...l,kind:'請假'})),
+    ...getMergedOT().map(o=>({...o,kind:'加班'}))
+  ].filter(x=>!selEmp||x.name===selEmp).sort((a,b)=>String(b.id).localeCompare(String(a.id)));
   if(!all.length){c.innerHTML='<p class="loading">尚無記錄</p>';return;}
   c.innerHTML=all.map(x=>{
     const stCls=x.status==='待審核'?'st-p':x.status==='已核准'?'st-ok':x.status==='自動核准'?'st-auto':'st-no';
     return `<div class="item">
-      <div class="item-name">${x.dept}｜${x.name}
+      <div class="item-name">${x.dept||''}｜${x.name}
         <span style="font-size:11px;background:#D6EAF8;color:#0C447C;padding:2px 7px;border-radius:8px;margin-left:3px">${x.kind}</span>
       </div>
       <div class="item-detail">${x.kind==='請假'?`${x.type}·${x.date}·${x.duration}`:`${x.date}·${x.startTime}-${x.endTime}·${x.hours}h·${x.calcType}`}${x.reason?' · '+x.reason:''}</div>
@@ -595,11 +650,11 @@ function renLvRec(){
 }
 
 function updPend(){
-  const n=cd.leave.filter(x=>x.status==='待審核').length+cd.overtime.filter(x=>x.status==='待審核').length;
+  const n=getMergedLeave().filter(x=>x.status==='待審核').length+
+          getMergedOT().filter(x=>x.status==='待審核').length;
   document.getElementById('pendDot').style.display=n>0?'inline-block':'none';
 }
 
-// ── 管理員 ──
 function adminLogin(){
   if(document.getElementById('adminPwd').value===ADMIN){localStorage.setItem('adm','1');showAdm();toast('管理員登入成功 ✅');}
   else toast('❌ 密碼錯誤');
@@ -608,8 +663,7 @@ function adminLogout(){
   localStorage.removeItem('adm');
   document.getElementById('adminPanel').style.display='none';
   document.getElementById('adminLock').style.display='block';
-  document.getElementById('adminPwd').value='';
-  toast('已登出');
+  document.getElementById('adminPwd').value='';toast('已登出');
 }
 function showAdm(){
   document.getElementById('adminLock').style.display='none';
@@ -618,51 +672,52 @@ function showAdm(){
   loadCloud(()=>renReviews());
 }
 
-// ── 修改打卡記錄 ──
-function loadEmpPunchForEdit(){
+// 修改打卡記錄 - 合併本機+雲端
+function loadEditPunch(){
   const name=document.getElementById('editEmpSel').value;
   const date=document.getElementById('editDate').value;
   const c=document.getElementById('editPunchList');
   if(!name||!date){c.innerHTML='';return;}
-  const recs=cd.punch.filter(r=>r.name===name&&String(r.date)===date);
-  if(!recs.length){
-    c.innerHTML='<p style="color:#888;font-size:14px;padding:8px 0">此日期無打卡記錄</p>';
-    return;
-  }
+  const recs=getMergedPunch().filter(r=>r.name===name&&String(r.date)===date);
+  if(!recs.length){c.innerHTML='<p style="color:#888;font-size:14px;padding:8px 0">此日期無打卡記錄</p>';return;}
   const emp=EMPS.find(e=>e.name===name)||{};
-  c.innerHTML=recs.map(r=>`
+  c.innerHTML=recs.map((r,i)=>`
     <div class="punch-edit-row">
-      <div class="punch-edit-info">
+      <div style="font-size:14px;color:#333">
         ${r.type==='上班'?'🟢':'🔴'} <strong>${r.type}</strong> ${r.time}
         <span style="font-size:12px;color:#888;margin-left:6px">${r.status}</span>
       </div>
       <div class="punch-edit-btns">
-        <button class="edit-btn" onclick="editPunchRecord('${name}','${date}','${r.type}','${emp.dept||''}')">修改</button>
-        <button class="del-btn" onclick="delPunchRecord('${name}','${date}','${r.type}','${emp.dept||''}')">刪除</button>
+        <button class="edit-btn" onclick="doEditPunch('${name}','${date}','${r.type}','${emp.dept||''}','${r.time}')">修改</button>
+        <button class="del-btn" onclick="doDelPunch('${name}','${date}','${r.type}','${emp.dept||''}','${r.time}')">刪除</button>
       </div>
     </div>`).join('');
 }
 
-function editPunchRecord(name,date,type,dept){
-  const newTime=prompt(`修改 ${name} ${date} ${type}時間\n請輸入新時間（格式：HH:MM）`);
+function doEditPunch(name,date,type,dept,oldTime){
+  const newTime=prompt(`修改 ${name} ${date} ${type}時間\n目前：${oldTime}\n請輸入新時間（格式：HH:MM）`);
   if(!newTime)return;
   if(!/^\d{2}:\d{2}$/.test(newTime)){toast('時間格式錯誤，請輸入 HH:MM');return;}
-  // 更新本地
-  const rec=cd.punch.find(r=>r.name===name&&String(r.date)===date&&r.type===type);
-  if(rec){rec.time=newTime;rec.status='管理員修改';}
-  else cd.punch.push({name,dept,date,type,time:newTime,status:'管理員修改'});
-  updPanel();loadEmpPunchForEdit();
+  // 更新本機
+  const lp=localPunch.find(r=>r.name===name&&String(r.date)===date&&r.type===type&&r.time===oldTime);
+  if(lp){lp.time=newTime;lp.status='管理員修改';}
+  else localPunch.push({name,dept,date,type,time:newTime,status:'管理員修改'});
+  saveLoc();updPanel();loadEditPunch();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'editPunch',name,dept,date,type,newTime})}).catch(()=>{});
   toast(`已修改 ${name} ${type}時間為 ${newTime} ✅`);
 }
 
-function delPunchRecord(name,date,type,dept){
-  if(!confirm(`確定刪除 ${name} ${date} ${type}打卡記錄？`))return;
-  const idx=cd.punch.findIndex(r=>r.name===name&&String(r.date)===date&&r.type===type);
-  if(idx>=0)cd.punch.splice(idx,1);
-  updPanel();loadEmpPunchForEdit();
+function doDelPunch(name,date,type,dept,time){
+  if(!confirm(`確定刪除 ${name} ${date} ${type} ${time} 的打卡記錄？`))return;
+  // 從本機刪除
+  const idx=localPunch.findIndex(r=>r.name===name&&String(r.date)===date&&r.type===type&&r.time===time);
+  if(idx>=0)localPunch.splice(idx,1);
+  // 從雲端快取刪除
+  const cidx=cloudPunch.findIndex(r=>r.name===name&&String(r.date)===date&&r.type===type&&r.time===time);
+  if(cidx>=0)cloudPunch.splice(cidx,1);
+  saveLoc();updPanel();loadEditPunch();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'deletePunch',name,dept,date,type})}).catch(()=>{});
-  toast(`已刪除 ${name} ${type}打卡記錄 ✅`);
+  toast(`已刪除打卡記錄 ✅`);
 }
 
 function renEmpList(){
@@ -680,20 +735,16 @@ function addEmp(){
   const name=document.getElementById('newName').value.trim();
   const dept=document.getElementById('newDept').value.trim();
   if(!name||!dept){toast('請填寫職稱和姓名');return;}
-  EMPS.push({name,dept});
-  localStorage.setItem('emps_v7',JSON.stringify(EMPS));
+  EMPS.push({name,dept});saveLoc();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'saveEmp',name,dept,joinDate:'',salary:0,annual:0})}).catch(()=>{});
   buildSels();renEmpList();
-  document.getElementById('newName').value='';
-  document.getElementById('newDept').value='';
+  document.getElementById('newName').value='';document.getElementById('newDept').value='';
   toast(`已新增：${dept}｜${name} ✅`);
 }
 
 function delEmp(i){
   if(!confirm(`確定刪除 ${EMPS[i].name}？`))return;
-  EMPS.splice(i,1);
-  localStorage.setItem('emps_v7',JSON.stringify(EMPS));
-  buildSels();renEmpList();toast('員工已刪除');
+  EMPS.splice(i,1);saveLoc();buildSels();renEmpList();toast('員工已刪除');
 }
 
 function adminSinglePunch(){
@@ -704,9 +755,9 @@ function adminSinglePunch(){
   if(!name){toast('請選擇員工');return;}
   if(!date||(!inTime&&!outTime)){toast('請填寫日期和至少一個時間');return;}
   const emp=EMPS.find(e=>e.name===name)||{};
-  if(inTime)cd.punch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:'管理員補打'});
-  if(outTime)cd.punch.push({name,dept:emp.dept||'',date,type:'下班',time:outTime,status:'管理員補打'});
-  updPanel();
+  if(inTime){localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:'管理員補打'});}
+  if(outTime){localPunch.push({name,dept:emp.dept||'',date,type:'下班',time:outTime,status:'管理員補打'});}
+  saveLoc();updPanel();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'adminPunch',name,dept:emp.dept||'',date,inTime,outTime})}).catch(()=>{});
   toast(`已為 ${name} 補打卡 ✅`);
 }
@@ -729,9 +780,10 @@ function adminBatchPunch(){
   if(!dates.length){toast('所選週內無符合日期');return;}
   const emp=EMPS.find(e=>e.name===name)||{};
   dates.forEach(date=>{
-    if(inTime)cd.punch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:'批次補打'});
-    if(outTime)cd.punch.push({name,dept:emp.dept||'',date,type:'下班',time:outTime,status:'批次補打'});
+    if(inTime)localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:'批次補打'});
+    if(outTime)localPunch.push({name,dept:emp.dept||'',date,type:'下班',time:outTime,status:'批次補打'});
   });
+  saveLoc();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'batchPunch',name,dept:emp.dept||'',dates,inTime,outTime})}).catch(()=>{});
   toast(`已為 ${name} 批次補打 ${dates.length} 天 ✅`);
 }
@@ -745,44 +797,46 @@ const rvBtn=(a,r)=>`<div style="display:flex;gap:8px;margin-top:10px">
 
 function renLV(){
   const c=document.getElementById('reviewLeave');
-  const p=cd.leave.filter(x=>x.status==='待審核');
+  const p=getMergedLeave().filter(x=>x.status==='待審核');
   document.getElementById('lvCount').textContent=p.length?`(${p.length})`:'';
   c.innerHTML=p.length?p.map(r=>`<div class="item">
-    <div class="item-name">${r.dept}｜${r.name}</div>
+    <div class="item-name">${r.dept||''}｜${r.name}</div>
     <div class="item-detail">📅 ${r.date}·${r.type}·${r.duration}${r.reason?' · '+r.reason:''}</div>
     ${rvBtn(`aLV('${r.id}',true)`,`aLV('${r.id}',false)`)}</div>`).join('')
     :'<p style="text-align:center;color:#888;padding:1rem">✅ 沒有待審核</p>';
 }
 
 function aLV(id,ok){
-  const r=cd.leave.find(x=>String(x.id)===String(id));
-  if(!r)return;
-  r.status=ok?'已核准':'已駁回';
-  updPend();renLV();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveLeave',id:r.id,approve:ok})})
-    .then(res=>res.json()).then(d=>{if(!d.success)toast('⚠️ 試算表更新失敗');}).catch(()=>{});
-  toast(ok?`✅ 已核准 ${r.name} 的請假`:`❌ 已駁回`);
+  // 更新本機
+  const lr=localLeave.find(x=>String(x.id)===String(id));
+  if(lr)lr.status=ok?'已核准':'已駁回';
+  // 更新雲端快取
+  const cr=cloudLeave.find(x=>String(x.id)===String(id));
+  if(cr)cr.status=ok?'已核准':'已駁回';
+  saveLoc();updPend();renLV();
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveLeave',id,approve:ok})}).catch(()=>{});
+  toast(ok?`✅ 已核准請假`:`❌ 已駁回`);
 }
 
 function renOTR(){
   const c=document.getElementById('reviewOT');
-  const p=cd.overtime.filter(x=>x.status==='待審核');
+  const p=getMergedOT().filter(x=>x.status==='待審核');
   document.getElementById('otCount').textContent=p.length?`(${p.length})`:'';
   c.innerHTML=p.length?p.map(r=>`<div class="item">
-    <div class="item-name">${r.dept}｜${r.name}</div>
+    <div class="item-name">${r.dept||''}｜${r.name}</div>
     <div class="item-detail">📅 ${r.date}·${r.startTime}-${r.endTime}·${r.hours}h·${r.calcType}${r.reason?' · '+r.reason:''}</div>
     ${rvBtn(`aOT('${r.id}',true)`,`aOT('${r.id}',false)`)}</div>`).join('')
     :'<p style="text-align:center;color:#888;padding:1rem">✅ 沒有待審核</p>';
 }
 
 function aOT(id,ok){
-  const r=cd.overtime.find(x=>String(x.id)===String(id));
-  if(!r)return;
-  r.status=ok?'已核准':'已駁回';
-  updPend();renOTR();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveOT',id:r.id,approve:ok})})
-    .then(res=>res.json()).then(d=>{if(!d.success)toast('⚠️ 試算表更新失敗');}).catch(()=>{});
-  toast(ok?`✅ 已核准 ${r.name} 的加班`:`❌ 已駁回`);
+  const lr=localOT.find(x=>String(x.id)===String(id));
+  if(lr)lr.status=ok?'已核准':'已駁回';
+  const cr=cloudOT.find(x=>String(x.id)===String(id));
+  if(cr)cr.status=ok?'已核准':'已駁回';
+  saveLoc();updPend();renOTR();
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveOT',id,approve:ok})}).catch(()=>{});
+  toast(ok?`✅ 已核准加班`:`❌ 已駁回`);
 }
 
 function toast(msg){
