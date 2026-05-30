@@ -944,9 +944,9 @@ function aLV(id,ok){
   if(cr)cr.status=ok?'已核准':'已駁回';
   const target=lr||cr;
   saveLoc();updPend();renLV();
-  // 送出 name/date 給後端 fallback 比對
+  // 送出 name/date/duration 給後端 fallback 比對
   const payload={action:'approveLeave',id,approve:ok};
-  if(target){payload.name=target.name;payload.date=target.date;}
+  if(target){payload.name=target.name;payload.date=target.date;payload.duration=target.duration;}
   fetch(SURL,{method:'POST',body:JSON.stringify(payload)})
     .then(r=>r.json()).then(d=>{if(!d.success)toast('⚠️ 試算表更新失敗：'+(d.msg||''));}).catch(()=>{});
   toast(ok?`✅ 已核准請假`:`❌ 已駁回`);
