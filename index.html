@@ -341,18 +341,12 @@ function getMergedPunch(){
 }
 function getMergedLeave(){
   const all=[...cloudLeave];
-  localLeave.forEach(ll=>{
-    const dup=all.some(cl=>String(cl.id)===String(ll.id)||(cl.name===ll.name&&String(cl.date)===String(ll.date)&&cl.startTime===ll.startTime));
-    if(!dup)all.push(ll);
-  });
+  localLeave.forEach(ll=>{if(!all.some(cl=>String(cl.id)===String(ll.id)))all.push(ll);});
   return all;
 }
 function getMergedOT(){
   const all=[...cloudOT];
-  localOT.forEach(lo=>{
-    const dup=all.some(co=>String(co.id)===String(lo.id)||(co.name===lo.name&&String(co.date)===String(lo.date)&&co.startTime===lo.startTime));
-    if(!dup)all.push(lo);
-  });
+  localOT.forEach(lo=>{if(!all.some(co=>String(co.id)===String(lo.id)))all.push(lo);});
   return all;
 }
 
@@ -720,7 +714,7 @@ function submitLeave(){
   if(hours<=0){toast('結束時間需晚於開始時間');return;}
   const duration=`${selLvStart}~${selLvEnd}（${hours.toFixed(1)}小時）`;
   const emp=EMPS.find(e=>e.name===selEmp)||{};
-  const id=new Date().toISOString();
+  const _now=new Date();const id=`${_now.getFullYear()}-${p2(_now.getMonth()+1)}-${p2(_now.getDate())} ${p2(_now.getHours())}:${p2(_now.getMinutes())}`;
   const req={id,name:selEmp,dept:emp.dept||'',type,date,
     startTime:selLvStart,endTime:selLvEnd,hours:hours.toFixed(1),
     duration,reason,status:'待審核'};
@@ -771,7 +765,7 @@ function submitOT(){
   const hours=getOTHours();
   if(parseFloat(hours)<=0){toast('結束時間需晚於開始時間');return;}
   const emp=EMPS.find(e=>e.name===selEmp)||{};
-  const id=new Date().toISOString();
+  const _now=new Date();const id=`${_now.getFullYear()}-${p2(_now.getMonth()+1)}-${p2(_now.getDate())} ${p2(_now.getHours())}:${p2(_now.getMinutes())}`;
   const req={id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,calcType:selOTCalc,reason,status:'待審核'};
   localOT.push(req);saveLoc();updPend();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'overtime',id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,calcType:selOTCalc,reason})}).catch(()=>{});
@@ -791,7 +785,7 @@ function autoApproveOT(id){
   if(target.startTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'上班',time:target.startTime,status:'加班',shift:'加班'});
   if(target.endTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'下班',time:target.endTime,status:'加班',shift:'加班'});
   saveLoc();updPend();updPanel();renOTR();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveOT',id,approve:true,autoApprove:true,name:target.name,date:target.date,startTime:target.startTime,endTime:target.endTime})}).catch(()=>{});
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveOT',id,approve:true,autoApprove:true})}).catch(()=>{});
   toast(`⏰ ${target.name} 加班已自動核准`);
 }
 
@@ -1104,43 +1098,35 @@ function aLV(idx,ok){
   toast(ok?`✅ 已核准請假`:`❌ 已駁回`);
 }
 
-let pendingOTMap={};
 function renOTR(){
   const c=document.getElementById('reviewOT');
   const p=getMergedOT().filter(x=>x.status==='待審核');
   document.getElementById('otCount').textContent=p.length?`(${p.length})`:'';
-  pendingOTMap={};
-  c.innerHTML=p.length?p.map((r,idx)=>{
-    pendingOTMap[idx]=r;
-    return `<div class="item">
+  c.innerHTML=p.length?p.map(r=>`<div class="item">
     <div class="item-name">${r.dept||''}｜${r.name}</div>
     <div class="item-detail">📅 ${r.date}·${r.startTime}-${r.endTime}·${r.hours}h${r.reason?' · '+r.reason:''}</div>
-    ${rvBtn(`aOT(${idx},true)`,`aOT(${idx},false)`)}</div>`;
-  }).join('')
+    ${rvBtn(`aOT('${r.id}',true)`,`aOT('${r.id}',false)`)}</div>`).join('')
     :'<p style="text-align:center;color:#888;padding:1rem">✅ 沒有待審核</p>';
 }
 
-function aOT(idx,ok){
-  const target=pendingOTMap[idx];
-  if(!target){toast('找不到記錄');return;}
-  // 更新 local/cloud 狀態
-  const lr=localOT.find(x=>x.name===target.name&&String(x.date)===String(target.date)&&x.startTime===target.startTime);
-  const cr=cloudOT.find(x=>x.name===target.name&&String(x.date)===String(target.date)&&x.startTime===target.startTime);
+function aOT(id,ok){
+  const lr=localOT.find(x=>String(x.id)===String(id));
+  const cr=cloudOT.find(x=>String(x.id)===String(id));
   if(lr)lr.status=ok?'已核准':'已駁回';
   if(cr)cr.status=ok?'已核准':'已駁回';
-  if(ok){
+  const target=lr||cr;
+  if(ok&&target){
     const emp=EMPS.find(e=>e.name===target.name)||{};
     if(target.startTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'上班',time:target.startTime,status:'加班',shift:'加班'});
     if(target.endTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'下班',time:target.endTime,status:'加班',shift:'加班'});
     saveLoc();updPanel();
   }
   saveLoc();updPend();renOTR();
-  // 用 name/date/startTime 比對，穩定可靠
-  const payload={action:'approveOT',approve:ok,name:target.name,date:target.date,startTime:target.startTime};
+  // 送出 name/date/startTime 給後端 fallback 比對
+  const payload={action:'approveOT',id,approve:ok};
+  if(target){payload.name=target.name;payload.date=target.date;payload.startTime=target.startTime;}
   fetch(SURL,{method:'POST',body:JSON.stringify(payload)})
-    .then(r=>r.json()).then(d=>{
-      if(!d.success)toast('⚠️ 試算表更新失敗：'+(d.msg||''));
-    }).catch(()=>{});
+    .then(r=>r.json()).then(d=>{if(!d.success)toast('⚠️ 試算表更新失敗：'+(d.msg||''));}).catch(()=>{});
   toast(ok?`✅ 已核准加班`:`❌ 已駁回`);
 }
 
