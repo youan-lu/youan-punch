@@ -294,6 +294,33 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
 <script>
 const SURL='https://script.google.com/macros/s/AKfycby7sJ9kkBp-4LTSzPCyQykzjS-QSb1egYAxSEQSy_VTpHE93S4Ax6RPHxri95ZTWZcP/exec';
 const ADMIN='0000';
+
+// 2026年台灣國定假日（包含補假）
+const HOLIDAYS_2026=new Set([
+  '2026-01-01', // 元旦
+  '2026-01-28', // 小年夜
+  '2026-01-29', // 除夕
+  '2026-01-30', // 春節初一
+  '2026-01-31', // 春節初二
+  '2026-02-01', // 春節初三
+  '2026-02-02', // 春節補假
+  '2026-02-27', // 228和平紀念日（補假）
+  '2026-02-28', // 228和平紀念日
+  '2026-04-03', // 兒童節補假
+  '2026-04-04', // 兒童節＋清明節
+  '2026-05-01', // 勞動節
+  '2026-06-19', // 端午節
+  '2026-09-28', // 孔子誕辰（教師節）
+  '2026-10-09', // 國慶日補假
+  '2026-10-10', // 國慶日
+  '2026-10-25', // 台灣光復節
+  '2026-10-26', // 台灣光復節補假
+  '2026-12-25', // 行憲紀念日
+]);
+
+function isHoliday(dateStr) {
+  return HOLIDAYS_2026.has(dateStr);
+}
 const DEF=[
   {name:'駱潔明',dept:'業務負責人'},{name:'蒲麗玉',dept:'行政人員'},
   {name:'賴美玲',dept:'居服督導員'},{name:'盧廷泰',dept:'行政人員'},
@@ -402,10 +429,9 @@ function getPunchShift(timeMins, isWeekend){
   if(isWeekend)return'加班';
   if(timeMins>=OT_AM_START&&timeMins<OT_AM_END)return'加班';
   if(timeMins>=NORMAL_START&&timeMins<=NORMAL_END)return'正常班';
-  if(timeMins>=OT_PM_START&&timeMins<=OT_PM_END)return'加班';
-  // 休息時間內
+  if(timeMins<=OT_PM_START)return'正常班'; // 18:00整還是正常班
+  if(timeMins>OT_PM_START&&timeMins<=OT_PM_END)return'加班'; // 18:01以後才是加班
   if(timeMins>=OT_AM_END&&timeMins<NORMAL_START)return'休息時間';
-  if(timeMins>NORMAL_END&&timeMins<OT_PM_START)return'休息時間';
   return'正常班';
 }
 
@@ -574,6 +600,12 @@ function punch(type){
   const d=new Date();
   const nowMins=d.getHours()*60+d.getMinutes();
   const ts=`${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const dow=d.getDay();
+  const isWeekend=(dow===0||dow===6);
+  const isHol=isHoliday(today);
+  const isOTDay=isWeekend||isHol; // 假日或國定假日都算加班
+  const shift=isOTDay?'加班':'正常班';
+  const status=isOTDay?'加班':'正常';
 
   // 上班打卡：只允許 08:20~08:40
   if(type==='in'){
@@ -588,34 +620,32 @@ function punch(type){
     const rec=getTodayRec();
     if(!rec.in){toast('⚠️ 尚未有上班打卡記錄');return;}
     const inMins=toMins(rec.in);
-    const expectedOut=inMins+9*60; // 上班時間+8小時工作+1小時午休
+    const expectedOut=inMins+9*60;
     const expectedOutStr=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;
-    // 允許誤差：預計下班時間前後10分鐘內才能打
     if(nowMins<expectedOut-10||nowMins>expectedOut+10){
       toast(`⚠️ 下班打卡時間為 ${expectedOutStr} 前後10分鐘，請使用補打卡功能`);
       return;
     }
-    // 下班時間記錄為「上班時間+9小時」，不是實際按鍵時間
     const emp=EMPS.find(e=>e.name===selEmp)||{};
-    const outRec={name:selEmp,dept:emp.dept||'',date:today,type:'下班',time:expectedOutStr,status:'正常',shift:'正常班'};
+    const outRec={name:selEmp,dept:emp.dept||'',date:today,type:'下班',time:expectedOutStr,status,shift};
     localPunch.push(outRec);saveLoc();updPanel();
     fetch(SURL,{method:'POST',body:JSON.stringify({
       action:'punch',name:selEmp,dept:emp.dept||'',
-      type:'out',date:today,status:'正常',shift:'正常班',fixedTime:expectedOutStr
+      type:'out',date:today,status,shift,fixedTime:expectedOutStr
     })}).catch(()=>toast('⚠️ 網路不穩，資料已存本機'));
-    toast(`${selEmp} 下班打卡成功 ${expectedOutStr}`);
+    toast(`${selEmp} ${isOTDay?'假日加班':''}下班打卡成功 ${expectedOutStr}`);
     return;
   }
 
   // 上班打卡：記錄實際時間
   const emp=EMPS.find(e=>e.name===selEmp)||{};
-  const rec={name:selEmp,dept:emp.dept||'',date:today,type:'上班',time:ts,status:'正常',shift:'正常班'};
+  const rec={name:selEmp,dept:emp.dept||'',date:today,type:'上班',time:ts,status,shift};
   localPunch.push(rec);saveLoc();updPanel();
   fetch(SURL,{method:'POST',body:JSON.stringify({
     action:'punch',name:selEmp,dept:emp.dept||'',
-    type:'in',date:today,status:'正常',shift:'正常班'
+    type:'in',date:today,status,shift
   })}).catch(()=>toast('⚠️ 網路不穩，資料已存本機'));
-  toast(`${selEmp} 上班打卡成功 ${ts}`);
+  toast(`${selEmp} ${isOTDay?'假日加班':''}上班打卡成功 ${ts}`);
 }
 
 function selSeg(btn,g){
