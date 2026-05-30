@@ -341,12 +341,18 @@ function getMergedPunch(){
 }
 function getMergedLeave(){
   const all=[...cloudLeave];
-  localLeave.forEach(ll=>{if(!all.some(cl=>String(cl.id)===String(ll.id)))all.push(ll);});
+  localLeave.forEach(ll=>{
+    const dup=all.some(cl=>String(cl.id)===String(ll.id)||(cl.name===ll.name&&String(cl.date)===String(ll.date)&&cl.startTime===ll.startTime));
+    if(!dup)all.push(ll);
+  });
   return all;
 }
 function getMergedOT(){
   const all=[...cloudOT];
-  localOT.forEach(lo=>{if(!all.some(co=>String(co.id)===String(lo.id)))all.push(lo);});
+  localOT.forEach(lo=>{
+    const dup=all.some(co=>String(co.id)===String(lo.id)||(co.name===lo.name&&String(co.date)===String(lo.date)&&co.startTime===lo.startTime));
+    if(!dup)all.push(lo);
+  });
   return all;
 }
 
