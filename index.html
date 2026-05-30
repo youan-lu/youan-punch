@@ -872,11 +872,16 @@ function doEditPunch(name,date,type,dept,oldTime){
   const newTime=prompt(`修改 ${name} ${date} ${type}時間\n目前：${oldTime}\n請輸入新時間（格式：HH:MM）`);
   if(!newTime)return;
   if(!/^\d{2}:\d{2}$/.test(newTime)){toast('時間格式錯誤，請輸入 HH:MM');return;}
+  // 判斷該日班別
+  const edDate=new Date(date+'T00:00:00');
+  const edDow=edDate.getDay();
+  const edIsOT=(edDow===0||edDow===6)||isHoliday(date);
+  const edShift=edIsOT?'加班':'正常班';
   const lp=localPunch.find(r=>r.name===name&&String(r.date)===date&&r.type===type&&r.time===oldTime);
-  if(lp){lp.time=newTime;lp.status='管理員修改';}
-  else localPunch.push({name,dept,date,type,time:newTime,status:'管理員修改'});
+  if(lp){lp.time=newTime;lp.status='管理員修改';lp.shift=edShift;}
+  else localPunch.push({name,dept,date,type,time:newTime,status:'管理員修改',shift:edShift});
   saveLoc();updPanel();loadEditPunch();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'editPunch',name,dept,date,type,newTime})}).catch(()=>{});
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'editPunch',name,dept,date,type,newTime,isWeekend:edIsOT})}).catch(()=>{});
   toast(`已修改 ${name} ${type}時間為 ${newTime} ✅`);
 }
 
