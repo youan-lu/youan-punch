@@ -514,14 +514,19 @@ function punch(type){
   if(!selEmp){toast('請先選擇員工');return;}
   const d=new Date();
   const ts=`${p2(d.getHours())}:${p2(d.getMinutes())}`;
-  const late=type==='in'&&(d.getHours()>8||(d.getHours()===8&&d.getMinutes()>40));
+  const dow=d.getDay(); // 0=日,6=六
+  const isWeekend=(dow===0||dow===6);
+  const late=type==='in'&&!isWeekend&&(d.getHours()>8||(d.getHours()===8&&d.getMinutes()>40));
+  let status=isWeekend?'加班':late?'遲到':'正常';
+  const punchType=type==='in'?'上班':'下班';
   const emp=EMPS.find(e=>e.name===selEmp)||{};
-  const rec={name:selEmp,dept:emp.dept||'',date:today,type:type==='in'?'上班':'下班',time:ts,status:late?'遲到':'正常'};
+  const rec={name:selEmp,dept:emp.dept||'',date:today,type:punchType,time:ts,status};
   localPunch.push(rec);saveLoc();
   updPanel();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'punch',name:selEmp,dept:emp.dept||'',type})})
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'punch',name:selEmp,dept:emp.dept||'',type,date:today,status})})
     .catch(()=>toast('⚠️ 網路不穩，資料已存本機'));
-  toast(`${selEmp} ${type==='in'?'上班':'下班'}打卡成功 ${ts}`);
+  const label=isWeekend?`假日加班${punchType}`:punchType;
+  toast(`${selEmp} ${label}打卡成功 ${ts}`);
 }
 
 function selSeg(btn,g){
@@ -553,6 +558,20 @@ function submitLeave(){
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'leave',id,name:selEmp,dept:emp.dept||'',leaveType:type,date,duration:selDur,reason})}).catch(()=>{});
   toast(`${selEmp} 請假申請已送出 ✅`);
   document.getElementById('leaveReason').value='';
+  // 1小時後若仍待審核則自動核准
+  setTimeout(()=>autoApproveLeave(id),60*60*1000);
+}
+
+function autoApproveLeave(id){
+  const lr=localLeave.find(x=>String(x.id)===String(id));
+  const cr=cloudLeave.find(x=>String(x.id)===String(id));
+  const target=lr||cr;
+  if(!target||target.status!=='待審核')return;
+  if(lr)lr.status='自動核准';
+  if(cr)cr.status='自動核准';
+  saveLoc();updPend();renLV();
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveLeave',id,approve:true,autoApprove:true})}).catch(()=>{});
+  toast(`📋 ${target.name} 請假已自動核准`);
 }
 
 function submitOT(){
@@ -570,6 +589,24 @@ function submitOT(){
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'overtime',id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,calcType:selOTCalc,reason})}).catch(()=>{});
   toast(`${selEmp} 加班申請已送出 ✅`);
   document.getElementById('otReason').value='';
+  // 1小時後若仍待審核則自動核准
+  setTimeout(()=>autoApproveOT(id),60*60*1000);
+}
+
+function autoApproveOT(id){
+  const lr=localOT.find(x=>String(x.id)===String(id));
+  const cr=cloudOT.find(x=>String(x.id)===String(id));
+  const target=lr||cr;
+  if(!target||target.status!=='待審核')return;
+  if(lr)lr.status='自動核准';
+  if(cr)cr.status='自動核准';
+  // 自動核准時同步寫入打卡記錄
+  const emp=EMPS.find(e=>e.name===target.name)||{};
+  if(target.startTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'上班',time:target.startTime,status:'加班'});
+  if(target.endTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'下班',time:target.endTime,status:'加班'});
+  saveLoc();updPend();updPanel();renOTR();
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveOT',id,approve:true,autoApprove:true})}).catch(()=>{});
+  toast(`⏰ ${target.name} 加班已自動核准`);
 }
 
 function submitMakeup(){
@@ -831,9 +868,19 @@ function renOTR(){
 
 function aOT(id,ok){
   const lr=localOT.find(x=>String(x.id)===String(id));
-  if(lr)lr.status=ok?'已核准':'已駁回';
   const cr=cloudOT.find(x=>String(x.id)===String(id));
+  if(lr)lr.status=ok?'已核准':'已駁回';
   if(cr)cr.status=ok?'已核准':'已駁回';
+  // 核准時同步寫入打卡記錄
+  if(ok){
+    const target=lr||cr;
+    if(target){
+      const emp=EMPS.find(e=>e.name===target.name)||{};
+      if(target.startTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'上班',time:target.startTime,status:'加班'});
+      if(target.endTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'下班',time:target.endTime,status:'加班'});
+      saveLoc();updPanel();
+    }
+  }
   saveLoc();updPend();renOTR();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveOT',id,approve:ok})}).catch(()=>{});
   toast(ok?`✅ 已核准加班`:`❌ 已駁回`);
