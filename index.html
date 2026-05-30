@@ -705,22 +705,32 @@ function submitMakeup(){
   if(!inTime&&!outTime){toast('請至少填一個時間');return;}
   if(!reason){toast('請填寫漏打原因');return;}
   const emp=EMPS.find(e=>e.name===selEmp)||{};
-  // 判斷補打的班別
-  const mkDate=new Date(date+'T00:00:00');
-  const isWeekend=(mkDate.getDay()===0||mkDate.getDay()===6);
-  if(inTime){
-    const m=toMins(inTime);
-    const shift=getPunchShift(m,isWeekend);
-    localPunch.push({name:selEmp,dept:emp.dept||'',date,type:'上班',time:inTime,status:'補登',shift});
+
+  // 計算正確的下班時間：上班時間 + 9小時（8小時工作+1小時午休）
+  let actualOutTime=outTime;
+  if(inTime&&outTime){
+    const inMins=toMins(inTime);
+    const expectedOut=inMins+9*60;
+    actualOutTime=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;
+  }else if(inTime&&!outTime){
+    // 只有上班沒有下班，自動計算下班
+    const inMins=toMins(inTime);
+    const expectedOut=inMins+9*60;
+    actualOutTime=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;
   }
-  if(outTime){
-    const m=toMins(outTime);
-    const shift=getPunchShift(m,isWeekend);
-    localPunch.push({name:selEmp,dept:emp.dept||'',date,type:'下班',time:outTime,status:'補登',shift});
+
+  if(inTime){
+    localPunch.push({name:selEmp,dept:emp.dept||'',date,type:'上班',time:inTime,status:'補登',shift:'正常班'});
+  }
+  if(inTime||outTime){
+    localPunch.push({name:selEmp,dept:emp.dept||'',date,type:'下班',time:actualOutTime,status:'補登',shift:'正常班'});
   }
   saveLoc();updPanel();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'makeup',name:selEmp,dept:emp.dept||'',date,inTime,outTime,reason,isWeekend})}).catch(()=>{});
-  toast(`${selEmp} 補打卡已生效 ✅`);
+  fetch(SURL,{method:'POST',body:JSON.stringify({
+    action:'makeup',name:selEmp,dept:emp.dept||'',
+    date,inTime,outTime:actualOutTime,reason
+  })}).catch(()=>{});
+  toast(`${selEmp} 補打卡已生效 ✅ 下班時間：${actualOutTime}`);
   document.getElementById('mkInTime').value='';
   document.getElementById('mkOutTime').value='';
   document.getElementById('mkReason').value='';
@@ -882,21 +892,19 @@ function adminSinglePunch(){
   const inTime=document.getElementById('adminInTime').value;
   const outTime=document.getElementById('adminOutTime').value;
   if(!name){toast('請選擇員工');return;}
-  if(!date||(!inTime&&!outTime)){toast('請填寫日期和至少一個時間');return;}
+  if(!date||!inTime){toast('請填寫日期和上班時間');return;}
   const emp=EMPS.find(e=>e.name===name)||{};
-  const mkDate=new Date(date+'T00:00:00');
-  const isWeekend=(mkDate.getDay()===0||mkDate.getDay()===6);
-  if(inTime){
-    const shift=getPunchShift(toMins(inTime),isWeekend);
-    localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:'管理員補打',shift});
-  }
-  if(outTime){
-    const shift=getPunchShift(toMins(outTime),isWeekend);
-    localPunch.push({name,dept:emp.dept||'',date,type:'下班',time:outTime,status:'管理員補打',shift});
-  }
+
+  // 下班時間：若有填就用，但以上班+9小時為準
+  const inMins=toMins(inTime);
+  const expectedOut=inMins+9*60;
+  const actualOut=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;
+
+  localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:'管理員補打',shift:'正常班'});
+  localPunch.push({name,dept:emp.dept||'',date,type:'下班',time:actualOut,status:'管理員補打',shift:'正常班'});
   saveLoc();updPanel();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'adminPunch',name,dept:emp.dept||'',date,inTime,outTime,isWeekend})}).catch(()=>{});
-  toast(`已為 ${name} 補打卡 ✅`);
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'adminPunch',name,dept:emp.dept||'',date,inTime,outTime:actualOut})}).catch(()=>{});
+  toast(`已為 ${name} 補打卡 ✅ 下班時間：${actualOut}`);
 }
 
 function adminBatchPunch(){
