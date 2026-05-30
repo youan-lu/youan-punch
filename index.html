@@ -572,36 +572,50 @@ function updPanel(){
 function punch(type){
   if(!selEmp){toast('請先選擇員工');return;}
   const d=new Date();
+  const nowMins=d.getHours()*60+d.getMinutes();
   const ts=`${p2(d.getHours())}:${p2(d.getMinutes())}`;
-  const timeMins=d.getHours()*60+d.getMinutes();
-  const dow=d.getDay();
-  const isWeekend=(dow===0||dow===6);
 
-  // 判斷班別
-  const shift=getPunchShift(timeMins,isWeekend);
-
-  // 判斷狀態
-  let status='正常';
-  if(isWeekend){
-    status='加班';
-  }else if(type==='in'){
-    if(timeMins>=OT_AM_START&&timeMins<OT_AM_END)status='加班';
-    else if(timeMins>8*60+40)status='遲到';
-    else status='正常';
+  // 上班打卡：只允許 08:20~08:40
+  if(type==='in'){
+    if(nowMins<8*60+20||nowMins>8*60+40){
+      toast('⚠️ 上班打卡時間為 08:20~08:40，請使用補打卡功能');
+      return;
+    }
   }
 
-  const punchType=type==='in'?'上班':'下班';
-  const emp=EMPS.find(e=>e.name===selEmp)||{};
-  const rec={name:selEmp,dept:emp.dept||'',date:today,type:punchType,time:ts,status,shift};
-  localPunch.push(rec);saveLoc();updPanel();
+  // 下班打卡：找今天上班時間，自動計算下班時間（上班+9小時）
+  if(type==='out'){
+    const rec=getTodayRec();
+    if(!rec.in){toast('⚠️ 尚未有上班打卡記錄');return;}
+    const inMins=toMins(rec.in);
+    const expectedOut=inMins+9*60; // 上班時間+8小時工作+1小時午休
+    const expectedOutStr=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;
+    // 允許誤差：預計下班時間前後10分鐘內才能打
+    if(nowMins<expectedOut-10||nowMins>expectedOut+10){
+      toast(`⚠️ 下班打卡時間為 ${expectedOutStr} 前後10分鐘，請使用補打卡功能`);
+      return;
+    }
+    // 下班時間記錄為「上班時間+9小時」，不是實際按鍵時間
+    const emp=EMPS.find(e=>e.name===selEmp)||{};
+    const outRec={name:selEmp,dept:emp.dept||'',date:today,type:'下班',time:expectedOutStr,status:'正常',shift:'正常班'};
+    localPunch.push(outRec);saveLoc();updPanel();
+    fetch(SURL,{method:'POST',body:JSON.stringify({
+      action:'punch',name:selEmp,dept:emp.dept||'',
+      type:'out',date:today,status:'正常',shift:'正常班',fixedTime:expectedOutStr
+    })}).catch(()=>toast('⚠️ 網路不穩，資料已存本機'));
+    toast(`${selEmp} 下班打卡成功 ${expectedOutStr}`);
+    return;
+  }
 
+  // 上班打卡：記錄實際時間
+  const emp=EMPS.find(e=>e.name===selEmp)||{};
+  const rec={name:selEmp,dept:emp.dept||'',date:today,type:'上班',time:ts,status:'正常',shift:'正常班'};
+  localPunch.push(rec);saveLoc();updPanel();
   fetch(SURL,{method:'POST',body:JSON.stringify({
     action:'punch',name:selEmp,dept:emp.dept||'',
-    type,date:today,status,shift
+    type:'in',date:today,status:'正常',shift:'正常班'
   })}).catch(()=>toast('⚠️ 網路不穩，資料已存本機'));
-
-  const label=isWeekend?`假日加班${punchType}`:punchType;
-  toast(`${selEmp} ${label}打卡成功 ${ts}`);
+  toast(`${selEmp} 上班打卡成功 ${ts}`);
 }
 
 function selSeg(btn,g){
