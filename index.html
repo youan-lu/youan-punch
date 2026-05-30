@@ -761,7 +761,7 @@ function renLvRec(){
       <div class="item-name">${x.dept||''}｜${x.name}
         <span style="font-size:11px;background:#D6EAF8;color:#0C447C;padding:2px 7px;border-radius:8px;margin-left:3px">${x.kind}</span>
       </div>
-      <div class="item-detail">${x.kind==='請假'?`${x.type}·${x.date}·${x.duration}`:`${x.date}·${x.startTime}-${x.endTime}·${x.hours}h·${x.calcType}`}${x.reason?' · '+x.reason:''}</div>
+      <div class="item-detail">${x.kind==='請假'?`${x.type}·${x.date}·${x.duration}`:`${x.date}·${x.startTime}-${x.endTime}·${x.hours}h`}${x.reason?' · '+x.reason:''}</div>
       <div class="item-status ${stCls}">${x.status}</div>
     </div>`;
   }).join('');
@@ -942,8 +942,13 @@ function aLV(id,ok){
   if(lr)lr.status=ok?'已核准':'已駁回';
   const cr=cloudLeave.find(x=>String(x.id)===String(id));
   if(cr)cr.status=ok?'已核准':'已駁回';
+  const target=lr||cr;
   saveLoc();updPend();renLV();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveLeave',id,approve:ok})}).catch(()=>{});
+  // 送出 name/date 給後端 fallback 比對
+  const payload={action:'approveLeave',id,approve:ok};
+  if(target){payload.name=target.name;payload.date=target.date;}
+  fetch(SURL,{method:'POST',body:JSON.stringify(payload)})
+    .then(r=>r.json()).then(d=>{if(!d.success)toast('⚠️ 試算表更新失敗：'+(d.msg||''));}).catch(()=>{});
   toast(ok?`✅ 已核准請假`:`❌ 已駁回`);
 }
 
@@ -953,7 +958,7 @@ function renOTR(){
   document.getElementById('otCount').textContent=p.length?`(${p.length})`:'';
   c.innerHTML=p.length?p.map(r=>`<div class="item">
     <div class="item-name">${r.dept||''}｜${r.name}</div>
-    <div class="item-detail">📅 ${r.date}·${r.startTime}-${r.endTime}·${r.hours}h·${r.calcType}${r.reason?' · '+r.reason:''}</div>
+    <div class="item-detail">📅 ${r.date}·${r.startTime}-${r.endTime}·${r.hours}h${r.reason?' · '+r.reason:''}</div>
     ${rvBtn(`aOT('${r.id}',true)`,`aOT('${r.id}',false)`)}</div>`).join('')
     :'<p style="text-align:center;color:#888;padding:1rem">✅ 沒有待審核</p>';
 }
@@ -963,17 +968,19 @@ function aOT(id,ok){
   const cr=cloudOT.find(x=>String(x.id)===String(id));
   if(lr)lr.status=ok?'已核准':'已駁回';
   if(cr)cr.status=ok?'已核准':'已駁回';
-  if(ok){
-    const target=lr||cr;
-    if(target){
-      const emp=EMPS.find(e=>e.name===target.name)||{};
-      if(target.startTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'上班',time:target.startTime,status:'加班',shift:'加班'});
-      if(target.endTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'下班',time:target.endTime,status:'加班',shift:'加班'});
-      saveLoc();updPanel();
-    }
+  const target=lr||cr;
+  if(ok&&target){
+    const emp=EMPS.find(e=>e.name===target.name)||{};
+    if(target.startTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'上班',time:target.startTime,status:'加班',shift:'加班'});
+    if(target.endTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'下班',time:target.endTime,status:'加班',shift:'加班'});
+    saveLoc();updPanel();
   }
   saveLoc();updPend();renOTR();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveOT',id,approve:ok})}).catch(()=>{});
+  // 送出 name/date/startTime 給後端 fallback 比對
+  const payload={action:'approveOT',id,approve:ok};
+  if(target){payload.name=target.name;payload.date=target.date;payload.startTime=target.startTime;}
+  fetch(SURL,{method:'POST',body:JSON.stringify(payload)})
+    .then(r=>r.json()).then(d=>{if(!d.success)toast('⚠️ 試算表更新失敗：'+(d.msg||''));}).catch(()=>{});
   toast(ok?`✅ 已核准加班`:`❌ 已駁回`);
 }
 
@@ -983,14 +990,23 @@ function manualCheckAttendance(){
   const res=document.getElementById('checkResult');
   res.textContent='⏳ 檢查中…';res.style.color='#888';
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'checkAttendance',date})})
-    .then(r=>r.json()).then(d=>{
+    .then(r=>r.text()).then(raw=>{
+      let d;
+      try{d=JSON.parse(raw);}catch(e){
+        res.textContent='❌ 回應格式錯誤：'+raw.substring(0,80);
+        res.style.color='#A93226';return;
+      }
       if(d.skipped){res.textContent='ℹ️ '+d.skipped;res.style.color='#888';}
       else if(d.success){
         const msg=d.added>0?`✅ 已產生 ${d.added} 筆未出勤記錄`:'✅ 所有員工出勤正常，無需產生記錄';
         res.textContent=msg;res.style.color='#1E8449';
         loadCloud(()=>renReviews());
-      }else{res.textContent='❌ 錯誤：'+(d.msg||'未知錯誤');res.style.color='#A93226';}
-    }).catch(()=>{res.textContent='❌ 網路錯誤，請稍後再試';res.style.color='#A93226';});
+      }else{
+        // 顯示詳細錯誤
+        const errMsg=d.error||d.msg||'未知錯誤';
+        res.textContent='❌ '+errMsg;res.style.color='#A93226';
+      }
+    }).catch(err=>{res.textContent='❌ 網路錯誤：'+err;res.style.color='#A93226';});
 }
 
 function toast(msg){
