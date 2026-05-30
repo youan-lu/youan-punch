@@ -127,19 +127,11 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
     <label>假別</label>
     <select id="leaveType"><option>特休</option><option>補休</option><option>加班補休</option><option>結存休</option><option>病假</option><option>事假</option><option>國定假日</option><option>其他</option></select>
     <label>請假日期</label><input type="date" id="leaveDate">
-    <label>請假時段</label>
-    <div class="seg-wrap" id="durSegs">
-      <div class="seg on" data-v="全天" onclick="selSeg(this,'dur')">全天</div>
-      <div class="seg" data-v="上午半天" onclick="selSeg(this,'dur')">上午半天</div>
-      <div class="seg" data-v="下午半天" onclick="selSeg(this,'dur')">下午半天</div>
-      <div class="seg" data-v="30分鐘" onclick="selSeg(this,'dur')">30分鐘</div>
-      <div class="seg" data-v="1小時" onclick="selSeg(this,'dur')">1小時</div>
-      <div class="seg" data-v="1.5小時" onclick="selSeg(this,'dur')">1.5小時</div>
-      <div class="seg" data-v="2小時" onclick="selSeg(this,'dur')">2小時</div>
-      <div class="seg" data-v="2.5小時" onclick="selSeg(this,'dur')">2.5小時</div>
-      <div class="seg" data-v="3小時" onclick="selSeg(this,'dur')">3小時</div>
-      <div class="seg" data-v="3.5小時" onclick="selSeg(this,'dur')">3.5小時</div>
+    <div class="grid2">
+      <div><label>請假開始時間</label><div class="time-sel" id="lvStartSel"></div></div>
+      <div><label>請假結束時間</label><div class="time-sel" id="lvEndSel"></div></div>
     </div>
+    <div id="lvHoursDisplay" style="text-align:center;margin-top:10px;font-size:15px;color:#0C447C;font-weight:700"></div>
     <label>原因說明</label>
     <textarea id="leaveReason" rows="3" placeholder="請簡述原因…"></textarea>
     <button class="big-btn" onclick="submitLeave()">📤 送出請假申請</button>
@@ -360,6 +352,53 @@ function getMergedOT(){
 
 let selEmp=null,selDur='全天',selOTType='平常日',selOTCalc='加班費';
 let selOTStart='',selOTEnd='';
+let selLvStart='',selLvEnd='';
+
+// 請假可選時間（08:30～17:30，每30分鐘）
+const LT=['08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00',
+  '12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00',
+  '16:30','17:00','17:30'];
+
+function renderLvTimes(){
+  selLvStart='';selLvEnd='';
+  document.getElementById('lvHoursDisplay').textContent='';
+  ['lvStartSel','lvEndSel'].forEach((id,idx)=>{
+    const w=document.getElementById(id);
+    if(!w)return;
+    w.innerHTML='';
+    LT.forEach(t=>{
+      const b=document.createElement('div');
+      b.className='time-btn';b.textContent=t;b.dataset.v=t;
+      b.onclick=()=>{
+        w.querySelectorAll('.time-btn').forEach(x=>x.classList.remove('on'));
+        b.classList.add('on');
+        if(idx===0)selLvStart=t;else selLvEnd=t;
+        calcLvDisplay();
+      };
+      w.appendChild(b);
+    });
+  });
+}
+
+function calcLvHours(){
+  if(!selLvStart||!selLvEnd)return 0;
+  const sm=toMins(selLvStart),em=toMins(selLvEnd);
+  if(em<=sm)return 0;
+  let mins=em-sm;
+  // 扣除午休 12:30~13:30
+  const lunchS=12*60+30,lunchE=13*60+30;
+  const over=Math.min(em,lunchE)-Math.max(sm,lunchS);
+  if(over>0)mins-=over;
+  return Math.max(0,mins/60);
+}
+
+function calcLvDisplay(){
+  const hrs=calcLvHours();
+  const d=document.getElementById('lvHoursDisplay');
+  if(!selLvStart||!selLvEnd){d.textContent='';return;}
+  if(hrs<=0){d.textContent='⚠️ 結束時間需晚於開始時間';return;}
+  d.textContent=`請假時數：${hrs.toFixed(1)} 小時`;
+}
 let batchDays=new Set(['1','2','3','4','5']);
 const now=new Date();
 const today=`${now.getFullYear()}-${p2(now.getMonth()+1)}-${p2(now.getDate())}`;
@@ -670,11 +709,21 @@ function submitLeave(){
   const type=document.getElementById('leaveType').value;
   const reason=document.getElementById('leaveReason').value.trim();
   if(!date){toast('請選擇日期');return;}
+  if(!selLvStart||!selLvEnd){toast('請選擇請假開始和結束時間');return;}
+  const hours=calcLvHours();
+  if(hours<=0){toast('結束時間需晚於開始時間');return;}
+  const duration=`${selLvStart}~${selLvEnd}（${hours.toFixed(1)}小時）`;
   const emp=EMPS.find(e=>e.name===selEmp)||{};
   const id=new Date().toISOString();
-  const req={id,name:selEmp,dept:emp.dept||'',type,date,duration:selDur,reason,status:'待審核'};
+  const req={id,name:selEmp,dept:emp.dept||'',type,date,
+    startTime:selLvStart,endTime:selLvEnd,hours:hours.toFixed(1),
+    duration,reason,status:'待審核'};
   localLeave.push(req);saveLoc();updPend();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'leave',id,name:selEmp,dept:emp.dept||'',leaveType:type,date,duration:selDur,reason})}).catch(()=>{});
+  fetch(SURL,{method:'POST',body:JSON.stringify({
+    action:'leave',id,name:selEmp,dept:emp.dept||'',
+    leaveType:type,date,startTime:selLvStart,endTime:selLvEnd,
+    hours:hours.toFixed(1),duration,reason
+  })}).catch(()=>{});
   toast(`${selEmp} 請假申請已送出 ✅`);
   document.getElementById('leaveReason').value='';
   setTimeout(()=>autoApproveLeave(id),60*60*1000);
@@ -687,9 +736,24 @@ function autoApproveLeave(id){
   if(!target||target.status!=='待審核')return;
   if(lr)lr.status='自動核准';
   if(cr)cr.status='自動核准';
-  saveLoc();updPend();renLV();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveLeave',id,approve:true,autoApprove:true})}).catch(()=>{});
+  // 核准時寫入打卡記錄
+  addLeavePunchRecords(target);
+  saveLoc();updPend();updPanel();renLV();
+  fetch(SURL,{method:'POST',body:JSON.stringify({
+    action:'approveLeave',id,approve:true,autoApprove:true,
+    name:target.name,date:target.date,
+    startTime:target.startTime,endTime:target.endTime
+  })}).catch(()=>{});
   toast(`📋 ${target.name} 請假已自動核准`);
+}
+
+// 核准請假後寫入打卡記錄
+function addLeavePunchRecords(r){
+  if(!r||!r.startTime||!r.endTime)return;
+  const emp=EMPS.find(e=>e.name===r.name)||{};
+  localPunch.push({name:r.name,dept:emp.dept||'',date:r.date,type:'下班',time:r.startTime,status:'請假',shift:'請假'});
+  localPunch.push({name:r.name,dept:emp.dept||'',date:r.date,type:'上班',time:r.endTime,status:'請假',shift:'請假'});
+  saveLoc();
 }
 
 function submitOT(){
@@ -772,6 +836,7 @@ function goPage(p){
   document.getElementById('homePage').style.display='none';
   document.querySelectorAll('.sub').forEach(x=>x.classList.remove('on'));
   document.getElementById('page-'+p).classList.add('on');
+  if(p==='leave')renderLvTimes();
   if(p==='record')renRec();
   if(p==='leaveRec')renLvRec();
   if(p==='admin'&&localStorage.getItem('adm')==='1')showAdm();
@@ -1014,21 +1079,19 @@ function renLV(){
 function aLV(idx,ok){
   const r=pendingLeaveMap[idx];
   if(!r){toast('找不到記錄');return;}
-  // 更新本機和雲端快取
   const lr=localLeave.find(x=>String(x.id)===String(r.id));
   if(lr)lr.status=ok?'已核准':'已駁回';
   const cr=cloudLeave.find(x=>String(x.id)===String(r.id));
   if(cr)cr.status=ok?'已核准':'已駁回';
-  saveLoc();updPend();renLV();
-  // 直接送出完整資料，後端一定找得到
+  // 核准時寫入打卡記錄
+  if(ok)addLeavePunchRecords(r);
+  saveLoc();updPend();updPanel();renLV();
   const payload={
     action:'approveLeave',
-    id:r.id,
-    approve:ok,
-    name:r.name,
-    date:r.date,
-    duration:r.duration,
-    reason:r.reason||''
+    id:r.id,approve:ok,
+    name:r.name,date:r.date,
+    duration:r.duration,reason:r.reason||'',
+    startTime:r.startTime||'',endTime:r.endTime||''
   };
   fetch(SURL,{method:'POST',body:JSON.stringify(payload)})
     .then(res=>res.json()).then(d=>{if(!d.success)toast('⚠️ 試算表更新失敗：'+(d.msg||''));}).catch(()=>{});
