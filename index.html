@@ -1132,7 +1132,13 @@ function aOT(id,ok){
   const payload={action:'approveOT',id,approve:ok};
   if(target){payload.name=target.name;payload.date=target.date;payload.startTime=target.startTime;}
   fetch(SURL,{method:'POST',body:JSON.stringify(payload)})
-    .then(r=>r.json()).then(d=>{if(!d.success)toast('⚠️ 試算表更新失敗：'+(d.msg||''));}).catch(()=>{});
+    .then(r=>r.json()).then(d=>{
+      if(!d.success){
+        const sentInfo=d.sent?`\n送出：${JSON.stringify(d.sent)}`:'';
+        const pendInfo=d.pending?`\n試算表待審核：${JSON.stringify(d.pending)}`:'';
+        alert('⚠️ 試算表更新失敗：'+(d.msg||'')+sentInfo+pendInfo);
+      }
+    }).catch(()=>{});
   toast(ok?`✅ 已核准加班`:`❌ 已駁回`);
 }
 
