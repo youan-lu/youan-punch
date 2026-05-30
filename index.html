@@ -785,7 +785,7 @@ function autoApproveOT(id){
   if(target.startTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'上班',time:target.startTime,status:'加班',shift:'加班'});
   if(target.endTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'下班',time:target.endTime,status:'加班',shift:'加班'});
   saveLoc();updPend();updPanel();renOTR();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveOT',id,approve:true,autoApprove:true})}).catch(()=>{});
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'approveOT',id,approve:true,autoApprove:true,name:target.name,date:target.date,startTime:target.startTime,endTime:target.endTime})}).catch(()=>{});
   toast(`⏰ ${target.name} 加班已自動核准`);
 }
 
