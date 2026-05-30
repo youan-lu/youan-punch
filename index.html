@@ -1104,40 +1104,42 @@ function aLV(idx,ok){
   toast(ok?`✅ 已核准請假`:`❌ 已駁回`);
 }
 
+let pendingOTMap={};
 function renOTR(){
   const c=document.getElementById('reviewOT');
   const p=getMergedOT().filter(x=>x.status==='待審核');
   document.getElementById('otCount').textContent=p.length?`(${p.length})`:'';
-  c.innerHTML=p.length?p.map(r=>`<div class="item">
+  pendingOTMap={};
+  c.innerHTML=p.length?p.map((r,idx)=>{
+    pendingOTMap[idx]=r;
+    return `<div class="item">
     <div class="item-name">${r.dept||''}｜${r.name}</div>
     <div class="item-detail">📅 ${r.date}·${r.startTime}-${r.endTime}·${r.hours}h${r.reason?' · '+r.reason:''}</div>
-    ${rvBtn(`aOT('${r.id}',true)`,`aOT('${r.id}',false)`)}</div>`).join('')
+    ${rvBtn(`aOT(${idx},true)`,`aOT(${idx},false)`)}</div>`;
+  }).join('')
     :'<p style="text-align:center;color:#888;padding:1rem">✅ 沒有待審核</p>';
 }
 
-function aOT(id,ok){
-  const lr=localOT.find(x=>String(x.id)===String(id));
-  const cr=cloudOT.find(x=>String(x.id)===String(id));
+function aOT(idx,ok){
+  const target=pendingOTMap[idx];
+  if(!target){toast('找不到記錄');return;}
+  // 更新 local/cloud 狀態
+  const lr=localOT.find(x=>x.name===target.name&&String(x.date)===String(target.date)&&x.startTime===target.startTime);
+  const cr=cloudOT.find(x=>x.name===target.name&&String(x.date)===String(target.date)&&x.startTime===target.startTime);
   if(lr)lr.status=ok?'已核准':'已駁回';
   if(cr)cr.status=ok?'已核准':'已駁回';
-  const target=lr||cr;
-  if(ok&&target){
+  if(ok){
     const emp=EMPS.find(e=>e.name===target.name)||{};
     if(target.startTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'上班',time:target.startTime,status:'加班',shift:'加班'});
     if(target.endTime)localPunch.push({name:target.name,dept:emp.dept||'',date:target.date,type:'下班',time:target.endTime,status:'加班',shift:'加班'});
     saveLoc();updPanel();
   }
   saveLoc();updPend();renOTR();
-  // 送出 name/date/startTime 給後端 fallback 比對
-  const payload={action:'approveOT',id,approve:ok};
-  if(target){payload.name=target.name;payload.date=target.date;payload.startTime=target.startTime;}
+  // 用 name/date/startTime 比對，穩定可靠
+  const payload={action:'approveOT',approve:ok,name:target.name,date:target.date,startTime:target.startTime};
   fetch(SURL,{method:'POST',body:JSON.stringify(payload)})
     .then(r=>r.json()).then(d=>{
-      if(!d.success){
-        const sentInfo=d.sent?`\n送出：${JSON.stringify(d.sent)}`:'';
-        const pendInfo=d.pending?`\n試算表待審核：${JSON.stringify(d.pending)}`:'';
-        alert('⚠️ 試算表更新失敗：'+(d.msg||'')+sentInfo+pendInfo);
-      }
+      if(!d.success)toast('⚠️ 試算表更新失敗：'+(d.msg||''));
     }).catch(()=>{});
   toast(ok?`✅ 已核准加班`:`❌ 已駁回`);
 }
