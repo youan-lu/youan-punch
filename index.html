@@ -505,6 +505,12 @@ renderOTTimes();
 
 function toMins(t){const[h,m]=t.split(':').map(Number);return h*60+m;}
 
+// 產生申請ID：台灣本地時間 yyyy-MM-dd HH:mm，與後端試算表格式一致
+function nowId(){
+  const d=new Date();
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+
 function calcOTDisplay(){
   if(!selOTStart||!selOTEnd){document.getElementById('otHoursDisplay').textContent='';return;}
   const sm=toMins(selOTStart),em=toMins(selOTEnd);
@@ -545,10 +551,26 @@ function loadCloud(cb){
           EMPS=d.employees.map(e=>({name:e.name,dept:e.dept}));
           localStorage.setItem(LS_EMPS,JSON.stringify(EMPS));
         }
+        // 對帳：凡是已經出現在雲端的本機記錄，就從 localPunch 移除，
+        // 改以雲端為準。這樣其他裝置刪除雲端記錄後，本機重新整理時
+        // 不會再從 localPunch 把已刪除的記錄補回來（解決刪除不同步問題）。
+        reconcileLocalPunch();
+        saveLoc();
       }
       buildSels();updPanel();updPend();
       if(cb)cb();
     }).catch(()=>{buildSels();updPanel();updPend();if(cb)cb();});
+}
+
+// 移除「已同步進雲端」的本機打卡，避免刪除後又被本機補回
+function reconcileLocalPunch(){
+  localPunch=localPunch.filter(lp=>{
+    const inCloud=cloudPunch.some(cp=>
+      cp.name===lp.name&&String(cp.date)===String(lp.date)&&
+      cp.type===lp.type&&cp.time===lp.time);
+    // 已在雲端 → 不必再留本機副本（雲端為準）
+    return !inCloud;
+  });
 }
 loadCloud();
 
@@ -714,7 +736,7 @@ function submitLeave(){
   if(hours<=0){toast('結束時間需晚於開始時間');return;}
   const duration=`${selLvStart}~${selLvEnd}（${hours.toFixed(1)}小時）`;
   const emp=EMPS.find(e=>e.name===selEmp)||{};
-  const _now=new Date();const id=`${_now.getFullYear()}-${p2(_now.getMonth()+1)}-${p2(_now.getDate())} ${p2(_now.getHours())}:${p2(_now.getMinutes())}`;
+  const id=nowId();
   const req={id,name:selEmp,dept:emp.dept||'',type,date,
     startTime:selLvStart,endTime:selLvEnd,hours:hours.toFixed(1),
     duration,reason,status:'待審核'};
@@ -765,7 +787,7 @@ function submitOT(){
   const hours=getOTHours();
   if(parseFloat(hours)<=0){toast('結束時間需晚於開始時間');return;}
   const emp=EMPS.find(e=>e.name===selEmp)||{};
-  const _now=new Date();const id=`${_now.getFullYear()}-${p2(_now.getMonth()+1)}-${p2(_now.getDate())} ${p2(_now.getHours())}:${p2(_now.getMinutes())}`;
+  const id=nowId();
   const req={id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,calcType:selOTCalc,reason,status:'待審核'};
   localOT.push(req);saveLoc();updPend();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'overtime',id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,calcType:selOTCalc,reason})}).catch(()=>{});
@@ -927,27 +949,37 @@ function loadEditPunch(){
         <span style="font-size:12px;color:#888;margin-left:6px">${r.status}</span>
       </div>
       <div class="punch-edit-btns">
-        <button class="edit-btn" onclick="doEditPunch('${name}','${date}','${r.type}','${emp.dept||''}','${r.time}')">修改</button>
+        <button class="edit-btn" onclick="doEditPunch('${name}','${date}','${r.type}','${emp.dept||''}','${r.time}','${r.shift||''}')">修改</button>
         <button class="del-btn" onclick="doDelPunch('${name}','${date}','${r.type}','${emp.dept||''}','${r.time}')">刪除</button>
       </div>
     </div>`).join('');
 }
 
-function doEditPunch(name,date,type,dept,oldTime){
-  const newTime=prompt(`修改 ${name} ${date} ${type}時間\n目前：${oldTime}\n請輸入新時間（格式：HH:MM）`);
+function doEditPunch(name,date,type,dept,oldTime,oldShift){
+  const newTime=prompt(`修改 ${name} ${date} ${type}時間\n目前：${oldTime}\n請輸入新時間（格式：HH:MM）`,oldTime);
   if(!newTime)return;
   if(!/^\d{2}:\d{2}$/.test(newTime)){toast('時間格式錯誤，請輸入 HH:MM');return;}
-  // 判斷該日班別
+  // 班別：依該日自動建議，再讓管理員確認 / 修改
   const edDate=new Date(date+'T00:00:00');
   const edDow=edDate.getDay();
   const edIsOT=(edDow===0||edDow===6)||isHoliday(date);
-  const edShift=edIsOT?'加班':'正常班';
+  const suggested=oldShift||(edIsOT?'加班':'正常班');
+  let shift=prompt(`設定 ${name} ${date} ${type} 的班別\n（輸入「正常班」或「加班」）`,suggested);
+  if(shift===null)return; // 取消
+  shift=shift.trim();
+  if(shift!=='正常班'&&shift!=='加班'){
+    toast('班別需為「正常班」或「加班」');return;
+  }
   const lp=localPunch.find(r=>r.name===name&&String(r.date)===date&&r.type===type&&r.time===oldTime);
-  if(lp){lp.time=newTime;lp.status='管理員修改';lp.shift=edShift;}
-  else localPunch.push({name,dept,date,type,time:newTime,status:'管理員修改',shift:edShift});
+  if(lp){lp.time=newTime;lp.status='管理員修改';lp.shift=shift;}
+  else localPunch.push({name,dept,date,type,time:newTime,status:'管理員修改',shift});
+  // 更新 cloud 快取，讓本機畫面即時反映
+  const cp=cloudPunch.find(r=>r.name===name&&String(r.date)===date&&r.type===type);
+  if(cp){cp.time=newTime;cp.status='管理員修改';cp.shift=shift;}
   saveLoc();updPanel();loadEditPunch();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'editPunch',name,dept,date,type,newTime,isWeekend:edIsOT})}).catch(()=>{});
-  toast(`已修改 ${name} ${type}時間為 ${newTime} ✅`);
+  // shift 明確送出，後端直接採用
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'editPunch',name,dept,date,type,newTime,shift,isWeekend:edIsOT})}).catch(()=>{});
+  toast(`已修改 ${name} ${type} → ${newTime}（${shift}）✅`);
 }
 
 function doDelPunch(name,date,type,dept,time){
@@ -957,7 +989,10 @@ function doDelPunch(name,date,type,dept,time){
   const cidx=cloudPunch.findIndex(r=>r.name===name&&String(r.date)===date&&r.type===type&&r.time===time);
   if(cidx>=0)cloudPunch.splice(cidx,1);
   saveLoc();updPanel();loadEditPunch();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'deletePunch',name,dept,date,type})}).catch(()=>{});
+  // 等後端刪除完成後，重新抓雲端資料，確保本機與伺服器一致
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'deletePunch',name,dept,date,type})})
+    .then(()=>loadCloud(()=>loadEditPunch()))
+    .catch(()=>{});
   toast(`已刪除打卡記錄 ✅`);
 }
 
@@ -1154,6 +1189,23 @@ function manualCheckAttendance(){
       }
     }).catch(err=>{res.textContent='❌ 網路錯誤：'+err;res.style.color='#A93226';});
 }
+
+// 每 60 秒自動同步雲端，讓其他裝置的修改/刪除能反映到目前畫面
+setInterval(()=>{
+  // 找出目前開啟中的子頁面
+  const openSub=document.querySelector('.sub.on');
+  loadCloud(()=>{
+    if(!openSub){updPanel();return;}
+    const id=openSub.id;
+    if(id==='page-record')renRec();
+    else if(id==='page-leaveRec')renLvRec();
+    else if(id==='page-admin'&&localStorage.getItem('adm')==='1'){
+      renReviews();
+      // 若正在修改打卡，刷新清單
+      if(document.getElementById('editEmpSel').value&&document.getElementById('editDate').value)loadEditPunch();
+    }
+  });
+},60*1000);
 
 function toast(msg){
   const t=document.getElementById('toast');
