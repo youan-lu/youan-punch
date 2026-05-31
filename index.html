@@ -320,7 +320,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
 // 系統會偵測到版本變了，自動清快取重載一次，連 LINE 內建瀏覽器也會吃到新版。
-const APP_VERSION='2026.06.01.3';
+const APP_VERSION='2026.06.01.4';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -1612,17 +1612,21 @@ function saveEditModal(){
 function doSavePunchEdit(r,newTime,shift,after){
   const emp=EMPS.find(e=>e.name===r.name)||{};
   const edShift=shift||r.shift||'正常班';
-  const lp=localPunch.find(p=>p.name===r.name&&String(p.date)===r.date&&p.type===r.type&&p.time===r.time);
-  if(lp){lp.time=newTime;lp.shift=edShift;}
-  else localPunch.push({name:r.name,dept:emp.dept||'',date:r.date,type:r.type,time:newTime,status:r.status,shift:edShift});
-  const cp=cloudPunch.find(p=>p.name===r.name&&String(p.date)===r.date&&p.type===r.type&&p.time===r.time);
-  if(cp){cp.time=newTime;cp.shift=edShift;}
-  saveLoc();updPanel();if(after)after();
   fetch(SURL,{method:'POST',body:JSON.stringify({
     action:'editPunch',byEmployee:true,name:r.name,dept:emp.dept||'',
     date:r.date,type:r.type,oldTime:r.time,newTime,shift:edShift,keepStatus:r.status
-  })}).then(()=>loadCloud(()=>{if(after)after();})).catch(()=>{});
-  toast(`已修改 ${r.type}時間為 ${newTime} ✅`);
+  })}).then(res=>res.json()).then(d=>{
+    if(d&&d.success){
+      toast(`已修改 ${r.type}時間為 ${newTime} ✅`);
+    }else{
+      toast('⚠️ '+((d&&d.msg)||'修改失敗，請重試'));
+    }
+    // 不論成功與否，都從雲端重新抓取，確保畫面與試算表一致（避免出現重複）
+    loadCloud(()=>{if(after)after();});
+  }).catch(()=>{
+    toast('⚠️ 網路不穩，請重新整理確認');
+    loadCloud(()=>{if(after)after();});
+  });
 }
 
 function toast(msg){
