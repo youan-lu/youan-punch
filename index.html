@@ -908,6 +908,9 @@ function goHome(){
   loadCloud();
 }
 
+let recPunchMap={};
+// 員工可自行修改/刪除的打卡狀態（自己打卡或補登的）
+const EMP_EDITABLE_PUNCH=['正常','遲到','補登'];
 function renRec(){
   const c=document.getElementById('recordList');
   const all=getMergedPunch().filter(r=>!selEmp||r.name===selEmp);
@@ -918,15 +921,69 @@ function renRec(){
     '管理員補打':'#185FA5','批次補打':'#185FA5','管理員修改':'#854F0B','加班':'#6C3483'
   };
   const shiftColor={'正常班':'#1A5276','加班':'#6C3483','休息時間':'#888'};
-  c.innerHTML=sorted.slice(0,60).map(r=>{
+  recPunchMap={};
+  c.innerHTML=sorted.slice(0,60).map((r,i)=>{
+    recPunchMap[i]=r;
     const shiftLabel=r.shift?`<span style="font-size:11px;padding:2px 8px;border-radius:8px;background:${r.shift==='加班'?'#E8DAEF':'#D6EAF8'};color:${shiftColor[r.shift]||'#888'};margin-left:5px">${r.shift}</span>`:'';
+    // 員工只能改/刪自己的、且狀態在白名單（正常/遲到/補登）內
+    const canEdit=selEmp && r.name===selEmp && EMP_EDITABLE_PUNCH.indexOf(r.status)>=0;
+    const btns=canEdit?`<div class="punch-edit-btns" style="margin-top:8px">
+      <button class="edit-btn" onclick="empEditPunch(${i})">修改</button>
+      <button class="del-btn" onclick="empDelPunch(${i})">🗑 刪除</button>
+    </div>`:'';
     return`<div class="item">
       <div class="item-name">${r.dept||''}｜${r.name} <span style="font-size:11px;color:#aaa">${r.date}</span></div>
       <div class="item-detail">${r.type==='上班'?'🟢':'🔴'} ${r.type} ${r.time}${shiftLabel}
         <span style="color:${stColor[r.status]||'#888'};font-weight:700;font-size:12px;margin-left:6px">${r.status}</span>
       </div>
+      ${btns}
     </div>`;
   }).join('');
+}
+
+// 員工修改自己的打卡時間（限正常/遲到/補登）
+function empEditPunch(i){
+  const r=recPunchMap[i];if(!r){toast('找不到記錄');return;}
+  if(!selEmp||r.name!==selEmp){toast('只能修改自己的記錄');return;}
+  if(EMP_EDITABLE_PUNCH.indexOf(r.status)<0){toast('這筆記錄無法修改');return;}
+  const newTime=prompt(`修改 ${r.date} ${r.type}時間\n目前：${r.time}\n請輸入新時間（HH:MM）`,r.time);
+  if(newTime===null)return;
+  if(!/^\d{2}:\d{2}$/.test(newTime)){toast('時間格式錯誤，請輸入 HH:MM');return;}
+  const emp=EMPS.find(e=>e.name===r.name)||{};
+  // 班別依該日自動判斷（平日正常班、假日/國定假日加班）
+  const ed=new Date(r.date+'T00:00:00');
+  const edIsOT=(ed.getDay()===0||ed.getDay()===6)||isHoliday(r.date);
+  const edShift=edIsOT?'加班':'正常班';
+  // 更新本機/雲端快取
+  const lp=localPunch.find(p=>p.name===r.name&&String(p.date)===r.date&&p.type===r.type&&p.time===r.time);
+  if(lp){lp.time=newTime;lp.shift=edShift;}
+  else localPunch.push({name:r.name,dept:emp.dept||'',date:r.date,type:r.type,time:newTime,status:r.status,shift:edShift});
+  const cp=cloudPunch.find(p=>p.name===r.name&&String(p.date)===r.date&&p.type===r.type&&p.time===r.time);
+  if(cp){cp.time=newTime;cp.shift=edShift;}
+  saveLoc();updPanel();renRec();
+  // byEmployee + 原時間，讓後端精準定位並保留原狀態
+  fetch(SURL,{method:'POST',body:JSON.stringify({
+    action:'editPunch',byEmployee:true,name:r.name,dept:emp.dept||'',
+    date:r.date,type:r.type,oldTime:r.time,newTime,shift:edShift,keepStatus:r.status,isWeekend:edIsOT
+  })}).then(()=>loadCloud(()=>renRec())).catch(()=>{});
+  toast(`已修改 ${r.type}時間為 ${newTime} ✅`);
+}
+
+// 員工刪除自己的打卡（限正常/遲到/補登）
+function empDelPunch(i){
+  const r=recPunchMap[i];if(!r){toast('找不到記錄');return;}
+  if(!selEmp||r.name!==selEmp){toast('只能刪除自己的記錄');return;}
+  if(EMP_EDITABLE_PUNCH.indexOf(r.status)<0){toast('這筆記錄無法刪除');return;}
+  if(!confirm(`確定刪除 ${r.date} ${r.type} ${r.time} 的打卡記錄？`))return;
+  const emp=EMPS.find(e=>e.name===r.name)||{};
+  localPunch=localPunch.filter(p=>!(p.name===r.name&&String(p.date)===r.date&&p.type===r.type&&p.time===r.time));
+  cloudPunch=cloudPunch.filter(p=>!(p.name===r.name&&String(p.date)===r.date&&p.type===r.type&&p.time===r.time));
+  saveLoc();updPanel();renRec();
+  fetch(SURL,{method:'POST',body:JSON.stringify({
+    action:'deletePunch',byEmployee:true,name:r.name,dept:emp.dept||'',
+    date:r.date,type:r.type,time:r.time,status:r.status
+  })}).then(()=>loadCloud(()=>renRec())).catch(()=>{});
+  toast(`已刪除打卡記錄 ✅`);
 }
 
 let lvRecMap={};
@@ -942,9 +999,10 @@ function renLvRec(){
   c.innerHTML=all.map((x,i)=>{
     lvRecMap[i]=x;
     const stCls=x.status==='待審核'?'st-p':x.status==='已核准'?'st-ok':x.status==='自動核准'?'st-auto':'st-no';
-    // 員工本人 + 待審核：可改/可刪。管理員：永遠可改/可刪。
-    const isOwnerPending=(!isAdm)&&selEmp&&x.name===selEmp&&x.status==='待審核';
-    const canEdit=isAdm||isOwnerPending;
+    // 假單記錄頁＝員工檢視：只有「自己的」且「待審核」才能改/刪。
+    // 已核准/自動核准/已駁回 一律不顯示按鈕。
+    // （管理員要無限制改/刪，請到管理員專區的「修改請假/加班記錄」卡片）
+    const canEdit=selEmp && x.name===selEmp && x.status==='待審核';
     let btns='';
     if(canEdit){
       btns=`<div class="punch-edit-btns" style="margin-top:8px">
@@ -963,12 +1021,12 @@ function renLvRec(){
   }).join('');
 }
 
-// 假單記錄頁：修改（管理員 or 本人待審核）
+// 假單記錄頁＝員工檢視：一律以員工身分處理（只能改自己待審核的）
 function editLvRec(i){
   const x=lvRecMap[i];if(!x){toast('找不到記錄');return;}
-  const isAdm=localStorage.getItem('adm')==='1';
-  const byEmployee=!isAdm;
-  if(byEmployee&&x.status!=='待審核'){toast('已核准，無法修改');return;}
+  const byEmployee=true;
+  if(x.status!=='待審核'){toast('已核准，無法修改');return;}
+  if(!selEmp||x.name!==selEmp){toast('只能修改自己的記錄');return;}
   if(x.kind==='請假'){
     const lt=prompt(`假別（${LEAVE_TYPES.join('/')}）`,x.type);if(lt===null)return;
     if(LEAVE_TYPES.indexOf(lt.trim())<0){toast('假別不在清單內');return;}
@@ -1002,9 +1060,9 @@ function editLvRec(i){
 
 function delLvRec(i){
   const x=lvRecMap[i];if(!x){toast('找不到記錄');return;}
-  const isAdm=localStorage.getItem('adm')==='1';
-  if(!isAdm&&x.status!=='待審核'){toast('已核准，無法刪除');return;}
-  doDelRec(x.kind,x.name,x.date,x.startTime,x.id,!isAdm);
+  if(x.status!=='待審核'){toast('已核准，無法刪除');return;}
+  if(!selEmp||x.name!==selEmp){toast('只能刪除自己的記錄');return;}
+  doDelRec(x.kind,x.name,x.date,x.startTime,x.id,true);
   setTimeout(renLvRec,400);
 }
 
