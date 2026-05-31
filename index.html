@@ -341,12 +341,22 @@ function getMergedPunch(){
 }
 function getMergedLeave(){
   const all=[...cloudLeave];
-  localLeave.forEach(ll=>{if(!all.some(cl=>String(cl.id)===String(ll.id)))all.push(ll);});
+  localLeave.forEach(ll=>{
+    const dup=all.some(cl=>
+      String(cl.id)===String(ll.id) ||
+      (cl.name===ll.name && String(cl.date)===String(ll.date) && cl.startTime===ll.startTime));
+    if(!dup)all.push(ll);
+  });
   return all;
 }
 function getMergedOT(){
   const all=[...cloudOT];
-  localOT.forEach(lo=>{if(!all.some(co=>String(co.id)===String(lo.id)))all.push(lo);});
+  localOT.forEach(lo=>{
+    const dup=all.some(co=>
+      String(co.id)===String(lo.id) ||
+      (co.name===lo.name && String(co.date)===String(lo.date) && co.startTime===lo.startTime));
+    if(!dup)all.push(lo);
+  });
   return all;
 }
 
@@ -555,6 +565,7 @@ function loadCloud(cb){
         // 改以雲端為準。這樣其他裝置刪除雲端記錄後，本機重新整理時
         // 不會再從 localPunch 把已刪除的記錄補回來（解決刪除不同步問題）。
         reconcileLocalPunch();
+        reconcileLocalLeaveOT();
         saveLoc();
       }
       buildSels();updPanel();updPend();
@@ -569,6 +580,23 @@ function reconcileLocalPunch(){
       cp.name===lp.name&&String(cp.date)===String(lp.date)&&
       cp.type===lp.type&&cp.time===lp.time);
     // 已在雲端 → 不必再留本機副本（雲端為準）
+    return !inCloud;
+  });
+}
+
+// 請假/加班：同理，已同步進雲端的本機記錄就移除，
+// 讓任何裝置刪除雲端後，本機重整不會把它補回來。
+function reconcileLocalLeaveOT(){
+  localLeave=localLeave.filter(ll=>{
+    const inCloud=cloudLeave.some(cl=>
+      String(cl.id)===String(ll.id) ||
+      (cl.name===ll.name&&String(cl.date)===String(ll.date)&&cl.startTime===ll.startTime));
+    return !inCloud;
+  });
+  localOT=localOT.filter(lo=>{
+    const inCloud=cloudOT.some(co=>
+      String(co.id)===String(lo.id) ||
+      (co.name===lo.name&&String(co.date)===String(lo.date)&&co.startTime===lo.startTime));
     return !inCloud;
   });
 }
@@ -893,6 +921,7 @@ function renRec(){
 
 function renLvRec(){
   const c=document.getElementById('leaveRecList');
+  const isAdm=localStorage.getItem('adm')==='1';
   const all=[
     ...getMergedLeave().map(l=>({...l,kind:'請假'})),
     ...getMergedOT().map(o=>({...o,kind:'加班'}))
@@ -900,14 +929,37 @@ function renLvRec(){
   if(!all.length){c.innerHTML='<p class="loading">尚無記錄</p>';return;}
   c.innerHTML=all.map(x=>{
     const stCls=x.status==='待審核'?'st-p':x.status==='已核准'?'st-ok':x.status==='自動核准'?'st-auto':'st-no';
+    // 只有管理員登入後才顯示刪除鈕
+    const delBtn=isAdm?`<button class="del-btn" style="margin-top:8px" onclick="doDelRec('${x.kind}','${(x.name||'').replace(/'/g,"")}','${x.date||''}','${x.startTime||''}','${(x.id||'').replace(/'/g,"")}')">🗑 刪除</button>`:'';
     return`<div class="item">
       <div class="item-name">${x.dept||''}｜${x.name}
         <span style="font-size:11px;background:#D6EAF8;color:#0C447C;padding:2px 7px;border-radius:8px;margin-left:3px">${x.kind}</span>
       </div>
       <div class="item-detail">${x.kind==='請假'?`${x.type}·${x.date}·${x.duration}`:`${x.date}·${x.startTime}-${x.endTime}·${x.hours}h`}${x.reason?' · '+x.reason:''}</div>
       <div class="item-status ${stCls}">${x.status}</div>
+      ${delBtn}
     </div>`;
   }).join('');
+}
+
+// 刪除請假/加班記錄（管理員）：整列從試算表刪除 + 清本機 + 重抓雲端同步
+function doDelRec(kind,name,date,startTime,id){
+  if(localStorage.getItem('adm')!=='1'){toast('需管理員權限');return;}
+  if(!confirm(`確定刪除 ${name} ${date} 的這筆${kind}記錄？\n（會從試算表整列刪除，無法復原）`))return;
+  const action=kind==='請假'?'deleteLeave':'deleteOT';
+  // 清本機快取
+  if(kind==='請假'){
+    localLeave=localLeave.filter(x=>!(String(x.id)===String(id)||(x.name===name&&x.date===date&&x.startTime===startTime)));
+    cloudLeave=cloudLeave.filter(x=>!(String(x.id)===String(id)||(x.name===name&&x.date===date&&x.startTime===startTime)));
+  }else{
+    localOT=localOT.filter(x=>!(String(x.id)===String(id)||(x.name===name&&x.date===date&&x.startTime===startTime)));
+    cloudOT=cloudOT.filter(x=>!(String(x.id)===String(id)||(x.name===name&&x.date===date&&x.startTime===startTime)));
+  }
+  saveLoc();updPend();renLvRec();
+  fetch(SURL,{method:'POST',body:JSON.stringify({action,id,name,date,startTime})})
+    .then(()=>loadCloud(()=>renLvRec()))
+    .catch(()=>{});
+  toast(`已刪除${kind}記錄 ✅`);
 }
 
 function updPend(){
@@ -990,7 +1042,7 @@ function doDelPunch(name,date,type,dept,time){
   if(cidx>=0)cloudPunch.splice(cidx,1);
   saveLoc();updPanel();loadEditPunch();
   // 等後端刪除完成後，重新抓雲端資料，確保本機與伺服器一致
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'deletePunch',name,dept,date,type})})
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'deletePunch',name,dept,date,type,time})})
     .then(()=>loadCloud(()=>loadEditPunch()))
     .catch(()=>{});
   toast(`已刪除打卡記錄 ✅`);
@@ -1097,7 +1149,8 @@ let pendingLeaveMap={};
 
 function renLV(){
   const c=document.getElementById('reviewLeave');
-  const p=getMergedLeave().filter(x=>x.status==='待審核');
+  const p=getMergedLeave().filter(x=>x.status==='待審核')
+    .sort((a,b)=>String(b.id).localeCompare(String(a.id))); // 申請時間新到舊
   document.getElementById('lvCount').textContent=p.length?`(${p.length})`:'';
   // 把完整資料存入 map，key 用 index
   pendingLeaveMap={};
@@ -1135,7 +1188,8 @@ function aLV(idx,ok){
 
 function renOTR(){
   const c=document.getElementById('reviewOT');
-  const p=getMergedOT().filter(x=>x.status==='待審核');
+  const p=getMergedOT().filter(x=>x.status==='待審核')
+    .sort((a,b)=>String(b.id).localeCompare(String(a.id))); // 申請時間新到舊
   document.getElementById('otCount').textContent=p.length?`(${p.length})`:'';
   c.innerHTML=p.length?p.map(r=>`<div class="item">
     <div class="item-name">${r.dept||''}｜${r.name}</div>
