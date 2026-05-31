@@ -134,7 +134,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
   <div class="card">
     <div class="card-title">📋 申請請假</div>
     <label>假別</label>
-    <select id="leaveType"><option>特休</option><option>補休</option><option>加班補休</option><option>結存休</option><option>病假</option><option>事假</option><option>國定假日</option><option>其他</option></select>
+    <select id="leaveType"><option>特休</option><option>補休</option><option>病假</option><option>事假</option><option>婚假</option><option>喪假</option><option>產假</option><option>陪產檢假</option><option>公假</option><option>歲時祭儀</option><option>其他</option></select>
     <label>請假日期</label><input type="date" id="leaveDate">
     <div class="grid2">
       <div><label>請假開始時間</label><div class="time-sel" id="lvStartSel"></div></div>
@@ -1154,7 +1154,7 @@ function doDelPunch(name,date,type,dept,time){
 }
 
 // ===== 管理員：修改請假記錄 =====
-const LEAVE_TYPES=['特休','補休','加班補休','結存休','病假','事假','國定假日','其他'];
+const LEAVE_TYPES=['特休','補休','病假','事假','婚假','喪假','產假','陪產檢假','公假','歲時祭儀','其他'];
 const STATUS_OPTS=['待審核','已核准','自動核准','已駁回'];
 
 function loadEditLeave(){
