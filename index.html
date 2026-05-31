@@ -320,7 +320,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
 // 系統會偵測到版本變了，自動清快取重載一次，連 LINE 內建瀏覽器也會吃到新版。
-const APP_VERSION='2026.06.01.4';
+const APP_VERSION='2026.06.01.6';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -767,8 +767,8 @@ function punch(type){
     const inMins=toMins(rec.in);
     const expectedOut=inMins+9*60;
     const expectedOutStr=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;
-    if(nowMins<expectedOut-10||nowMins>expectedOut+10){
-      toast(`⚠️ 下班打卡時間為 ${expectedOutStr} 前後10分鐘，請使用補打卡功能`);
+    if(nowMins<expectedOut-60||nowMins>expectedOut+60){
+      toast(`⚠️ 下班打卡時間為 ${expectedOutStr} 前後60分鐘，請使用補打卡功能`);
       return;
     }
     const emp=EMPS.find(e=>e.name===selEmp)||{};
@@ -902,6 +902,15 @@ function submitMakeup(){
   const outTime=document.getElementById('mkOutTime').value;
   const reason=document.getElementById('mkReason').value.trim();
   if(!date){toast('請選擇日期');return;}
+  // 補打卡日期最遠只能到「明天」（可補過去、今天、明天；後天以後擋下）
+  {
+    const sel=new Date(date+'T00:00:00');
+    const tmr=new Date();tmr.setHours(0,0,0,0);tmr.setDate(tmr.getDate()+1);
+    if(sel.getTime()>tmr.getTime()){
+      toast('⚠️ 補打卡最遠只能補到明天，不能補後天以後的日期');
+      return;
+    }
+  }
   if(!inTime&&!outTime){toast('請至少填一個時間');return;}
   if(!reason){toast('請填寫漏打原因');return;}
   const emp=EMPS.find(e=>e.name===selEmp)||{};
