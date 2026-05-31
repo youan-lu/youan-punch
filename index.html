@@ -221,6 +221,16 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
       <div id="editPunchList" style="margin-top:12px"></div>
     </div>
     <div class="card">
+      <div class="card-title">📋 修改請假記錄</div>
+      <label>員工</label><select id="editLvEmpSel" onchange="loadEditLeave()"></select>
+      <div id="editLeaveList" style="margin-top:12px"><p style="color:#888;font-size:14px">請選擇員工</p></div>
+    </div>
+    <div class="card">
+      <div class="card-title">⏰ 修改加班記錄</div>
+      <label>員工</label><select id="editOtEmpSel" onchange="loadEditOT()"></select>
+      <div id="editOTList" style="margin-top:12px"><p style="color:#888;font-size:14px">請選擇員工</p></div>
+    </div>
+    <div class="card">
       <div class="card-title">👥 員工名單</div>
       <div id="empList"></div>
     </div>
@@ -603,7 +613,7 @@ function reconcileLocalLeaveOT(){
 loadCloud();
 
 function buildSels(){
-  ['empSel','adminEmpSel','batchEmpSel','editEmpSel'].forEach(id=>{
+  ['empSel','adminEmpSel','batchEmpSel','editEmpSel','editLvEmpSel','editOtEmpSel'].forEach(id=>{
     const s=document.getElementById(id);if(!s)return;
     const c=s.value;
     s.innerHTML='<option value="">-- 請選擇員工 --</option>';
@@ -919,6 +929,7 @@ function renRec(){
   }).join('');
 }
 
+let lvRecMap={};
 function renLvRec(){
   const c=document.getElementById('leaveRecList');
   const isAdm=localStorage.getItem('adm')==='1';
@@ -927,24 +938,78 @@ function renLvRec(){
     ...getMergedOT().map(o=>({...o,kind:'加班'}))
   ].filter(x=>!selEmp||x.name===selEmp).sort((a,b)=>String(b.id).localeCompare(String(a.id)));
   if(!all.length){c.innerHTML='<p class="loading">尚無記錄</p>';return;}
-  c.innerHTML=all.map(x=>{
+  lvRecMap={};
+  c.innerHTML=all.map((x,i)=>{
+    lvRecMap[i]=x;
     const stCls=x.status==='待審核'?'st-p':x.status==='已核准'?'st-ok':x.status==='自動核准'?'st-auto':'st-no';
-    // 只有管理員登入後才顯示刪除鈕
-    const delBtn=isAdm?`<button class="del-btn" style="margin-top:8px" onclick="doDelRec('${x.kind}','${(x.name||'').replace(/'/g,"")}','${x.date||''}','${x.startTime||''}','${(x.id||'').replace(/'/g,"")}')">🗑 刪除</button>`:'';
+    // 員工本人 + 待審核：可改/可刪。管理員：永遠可改/可刪。
+    const isOwnerPending=(!isAdm)&&selEmp&&x.name===selEmp&&x.status==='待審核';
+    const canEdit=isAdm||isOwnerPending;
+    let btns='';
+    if(canEdit){
+      btns=`<div class="punch-edit-btns" style="margin-top:8px">
+        <button class="edit-btn" onclick="editLvRec(${i})">修改</button>
+        <button class="del-btn" onclick="delLvRec(${i})">🗑 刪除</button>
+      </div>`;
+    }
     return`<div class="item">
       <div class="item-name">${x.dept||''}｜${x.name}
         <span style="font-size:11px;background:#D6EAF8;color:#0C447C;padding:2px 7px;border-radius:8px;margin-left:3px">${x.kind}</span>
       </div>
       <div class="item-detail">${x.kind==='請假'?`${x.type}·${x.date}·${x.duration}`:`${x.date}·${x.startTime}-${x.endTime}·${x.hours}h`}${x.reason?' · '+x.reason:''}</div>
       <div class="item-status ${stCls}">${x.status}</div>
-      ${delBtn}
+      ${btns}
     </div>`;
   }).join('');
 }
 
-// 刪除請假/加班記錄（管理員）：整列從試算表刪除 + 清本機 + 重抓雲端同步
-function doDelRec(kind,name,date,startTime,id){
-  if(localStorage.getItem('adm')!=='1'){toast('需管理員權限');return;}
+// 假單記錄頁：修改（管理員 or 本人待審核）
+function editLvRec(i){
+  const x=lvRecMap[i];if(!x){toast('找不到記錄');return;}
+  const isAdm=localStorage.getItem('adm')==='1';
+  const byEmployee=!isAdm;
+  if(byEmployee&&x.status!=='待審核'){toast('已核准，無法修改');return;}
+  if(x.kind==='請假'){
+    const lt=prompt(`假別（${LEAVE_TYPES.join('/')}）`,x.type);if(lt===null)return;
+    if(LEAVE_TYPES.indexOf(lt.trim())<0){toast('假別不在清單內');return;}
+    const date=prompt('請假日期（YYYY-MM-DD）',x.date);if(date===null)return;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){toast('日期格式錯誤');return;}
+    const st=prompt('開始時間（HH:MM）',x.startTime);if(st===null)return;
+    if(!/^\d{2}:\d{2}$/.test(st)){toast('時間格式錯誤');return;}
+    const et=prompt('結束時間（HH:MM）',x.endTime);if(et===null)return;
+    if(!/^\d{2}:\d{2}$/.test(et)){toast('時間格式錯誤');return;}
+    const reason=prompt('原因',x.reason||'');if(reason===null)return;
+    const hours=calcHoursBetween(st,et);
+    const newVals={type:lt.trim(),date,startTime:st,endTime:et,hours:hours.toFixed(1),reason:reason.trim(),status:x.status};
+    const payload={action:'editLeave',byEmployee,match:{name:x.name,date:x.date,startTime:x.startTime},id:x.id,
+      leaveType:lt.trim(),date,startTime:st,endTime:et,hours:hours.toFixed(1),reason:reason.trim()};
+    sendEditLeave(payload,x,newVals);setTimeout(renLvRec,400);
+  }else{
+    const date=prompt('加班日期（YYYY-MM-DD）',x.date);if(date===null)return;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){toast('日期格式錯誤');return;}
+    const st=prompt('開始時間（HH:MM）',x.startTime);if(st===null)return;
+    if(!/^\d{2}:\d{2}$/.test(st)){toast('時間格式錯誤');return;}
+    const et=prompt('結束時間（HH:MM）',x.endTime);if(et===null)return;
+    if(!/^\d{2}:\d{2}$/.test(et)){toast('時間格式錯誤');return;}
+    const reason=prompt('原因',x.reason||'');if(reason===null)return;
+    const hours=((toMins(et)-toMins(st))/60);
+    const newVals={date,startTime:st,endTime:et,hours:(hours>0?hours.toFixed(1):'0'),reason:reason.trim(),status:x.status};
+    const payload={action:'editOT',byEmployee,match:{name:x.name,date:x.date,startTime:x.startTime},id:x.id,
+      date,startTime:st,endTime:et,hours:(hours>0?hours.toFixed(1):'0'),reason:reason.trim()};
+    sendEditOT(payload,x,newVals);setTimeout(renLvRec,400);
+  }
+}
+
+function delLvRec(i){
+  const x=lvRecMap[i];if(!x){toast('找不到記錄');return;}
+  const isAdm=localStorage.getItem('adm')==='1';
+  if(!isAdm&&x.status!=='待審核'){toast('已核准，無法刪除');return;}
+  doDelRec(x.kind,x.name,x.date,x.startTime,x.id,!isAdm);
+  setTimeout(renLvRec,400);
+}
+
+// 刪除請假/加班記錄：整列從試算表刪除 + 清本機 + 重抓雲端同步
+function doDelRec(kind,name,date,startTime,id,byEmployee){
   if(!confirm(`確定刪除 ${name} ${date} 的這筆${kind}記錄？\n（會從試算表整列刪除，無法復原）`))return;
   const action=kind==='請假'?'deleteLeave':'deleteOT';
   // 清本機快取
@@ -956,7 +1021,7 @@ function doDelRec(kind,name,date,startTime,id){
     cloudOT=cloudOT.filter(x=>!(String(x.id)===String(id)||(x.name===name&&x.date===date&&x.startTime===startTime)));
   }
   saveLoc();updPend();renLvRec();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action,id,name,date,startTime})})
+  fetch(SURL,{method:'POST',body:JSON.stringify({action,id,name,date,startTime,byEmployee:!!byEmployee})})
     .then(()=>loadCloud(()=>renLvRec()))
     .catch(()=>{});
   toast(`已刪除${kind}記錄 ✅`);
@@ -982,7 +1047,7 @@ function showAdm(){
   document.getElementById('adminLock').style.display='none';
   document.getElementById('adminPanel').style.display='block';
   buildSels();renEmpList();
-  loadCloud(()=>renReviews());
+  loadCloud(()=>{renReviews();loadEditLeave();loadEditOT();});
 }
 
 function loadEditPunch(){
@@ -1046,6 +1111,151 @@ function doDelPunch(name,date,type,dept,time){
     .then(()=>loadCloud(()=>loadEditPunch()))
     .catch(()=>{});
   toast(`已刪除打卡記錄 ✅`);
+}
+
+// ===== 管理員：修改請假記錄 =====
+const LEAVE_TYPES=['特休','補休','加班補休','結存休','病假','事假','國定假日','其他'];
+const STATUS_OPTS=['待審核','已核准','自動核准','已駁回'];
+
+function loadEditLeave(){
+  const name=document.getElementById('editLvEmpSel').value;
+  const c=document.getElementById('editLeaveList');
+  if(!name){c.innerHTML='<p style="color:#888;font-size:14px">請選擇員工</p>';return;}
+  const recs=getMergedLeave().filter(r=>r.name===name)
+    .sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+  if(!recs.length){c.innerHTML='<p style="color:#888;font-size:14px;padding:8px 0">此員工無請假記錄</p>';return;}
+  c.innerHTML=recs.map((r,i)=>{
+    adminLeaveMap[i]=r;
+    const stCls=r.status==='待審核'?'st-p':r.status==='已駁回'?'st-no':'st-ok';
+    return`<div class="punch-edit-row" style="flex-direction:column;align-items:stretch;gap:6px">
+      <div style="font-size:14px;color:#333">
+        📅 <strong>${r.date}</strong>·${r.type}·${r.startTime}-${r.endTime}（${r.hours}h）
+        ${r.reason?`<span style="color:#888">· ${r.reason}</span>`:''}
+        <span class="item-status ${stCls}" style="margin-left:4px">${r.status}</span>
+      </div>
+      <div class="punch-edit-btns">
+        <button class="edit-btn" onclick="admEditLeave(${i})">修改</button>
+        <button class="del-btn" onclick="admDelLeave(${i})">刪除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+let adminLeaveMap={};
+
+function admEditLeave(i){
+  const r=adminLeaveMap[i];if(!r){toast('找不到記錄');return;}
+  const lt=prompt(`假別（${LEAVE_TYPES.join('/')}）`,r.type);if(lt===null)return;
+  if(LEAVE_TYPES.indexOf(lt.trim())<0){toast('假別不在清單內');return;}
+  const date=prompt('請假日期（YYYY-MM-DD）',r.date);if(date===null)return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){toast('日期格式錯誤');return;}
+  const st=prompt('開始時間（HH:MM）',r.startTime);if(st===null)return;
+  if(!/^\d{2}:\d{2}$/.test(st)){toast('時間格式錯誤');return;}
+  const et=prompt('結束時間（HH:MM）',r.endTime);if(et===null)return;
+  if(!/^\d{2}:\d{2}$/.test(et)){toast('時間格式錯誤');return;}
+  const reason=prompt('原因',r.reason||'');if(reason===null)return;
+  const status=prompt(`狀態（${STATUS_OPTS.join('/')}）`,r.status||'待審核');if(status===null)return;
+  if(STATUS_OPTS.indexOf(status.trim())<0){toast('狀態不在清單內');return;}
+  const hours=calcHoursBetween(st,et);
+  const payload={action:'editLeave',
+    match:{name:r.name,date:r.date,startTime:r.startTime},id:r.id,
+    leaveType:lt.trim(),date,startTime:st,endTime:et,hours:hours.toFixed(1),
+    reason:reason.trim(),status:status.trim()};
+  sendEditLeave(payload,r,{type:lt.trim(),date,startTime:st,endTime:et,hours:hours.toFixed(1),reason:reason.trim(),status:status.trim()});
+}
+
+function admDelLeave(i){
+  const r=adminLeaveMap[i];if(!r){toast('找不到記錄');return;}
+  doDelRec('請假',r.name,r.date,r.startTime,r.id);
+  setTimeout(loadEditLeave,400);
+}
+
+// ===== 管理員：修改加班記錄 =====
+function loadEditOT(){
+  const name=document.getElementById('editOtEmpSel').value;
+  const c=document.getElementById('editOTList');
+  if(!name){c.innerHTML='<p style="color:#888;font-size:14px">請選擇員工</p>';return;}
+  const recs=getMergedOT().filter(r=>r.name===name)
+    .sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+  if(!recs.length){c.innerHTML='<p style="color:#888;font-size:14px;padding:8px 0">此員工無加班記錄</p>';return;}
+  c.innerHTML=recs.map((r,i)=>{
+    adminOTMap[i]=r;
+    const stCls=r.status==='待審核'?'st-p':r.status==='已駁回'?'st-no':'st-ok';
+    return`<div class="punch-edit-row" style="flex-direction:column;align-items:stretch;gap:6px">
+      <div style="font-size:14px;color:#333">
+        📅 <strong>${r.date}</strong>·${r.startTime}-${r.endTime}（${r.hours}h）
+        ${r.reason?`<span style="color:#888">· ${r.reason}</span>`:''}
+        <span class="item-status ${stCls}" style="margin-left:4px">${r.status}</span>
+      </div>
+      <div class="punch-edit-btns">
+        <button class="edit-btn" onclick="admEditOT(${i})">修改</button>
+        <button class="del-btn" onclick="admDelOT(${i})">刪除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+let adminOTMap={};
+
+function admEditOT(i){
+  const r=adminOTMap[i];if(!r){toast('找不到記錄');return;}
+  const date=prompt('加班日期（YYYY-MM-DD）',r.date);if(date===null)return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){toast('日期格式錯誤');return;}
+  const st=prompt('開始時間（HH:MM）',r.startTime);if(st===null)return;
+  if(!/^\d{2}:\d{2}$/.test(st)){toast('時間格式錯誤');return;}
+  const et=prompt('結束時間（HH:MM）',r.endTime);if(et===null)return;
+  if(!/^\d{2}:\d{2}$/.test(et)){toast('時間格式錯誤');return;}
+  const reason=prompt('原因',r.reason||'');if(reason===null)return;
+  const status=prompt(`狀態（${STATUS_OPTS.join('/')}）`,r.status||'待審核');if(status===null)return;
+  if(STATUS_OPTS.indexOf(status.trim())<0){toast('狀態不在清單內');return;}
+  const hours=((toMins(et)-toMins(st))/60);
+  const payload={action:'editOT',
+    match:{name:r.name,date:r.date,startTime:r.startTime},id:r.id,
+    date,startTime:st,endTime:et,hours:(hours>0?hours.toFixed(1):'0'),
+    reason:reason.trim(),status:status.trim()};
+  sendEditOT(payload,r,{date,startTime:st,endTime:et,hours:(hours>0?hours.toFixed(1):'0'),reason:reason.trim(),status:status.trim()});
+}
+
+function admDelOT(i){
+  const r=adminOTMap[i];if(!r){toast('找不到記錄');return;}
+  doDelRec('加班',r.name,r.date,r.startTime,r.id);
+  setTimeout(loadEditOT,400);
+}
+
+// 共用：扣午休的請假時數
+function calcHoursBetween(st,et){
+  const sm=toMins(st),em=toMins(et);
+  if(em<=sm)return 0;
+  let mins=em-sm;
+  const lunchS=12*60+30,lunchE=13*60+30;
+  const over=Math.min(em,lunchE)-Math.max(sm,lunchS);
+  if(over>0)mins-=over;
+  return Math.max(0,mins/60);
+}
+
+// 共用：送出修改請假（更新本機快取 + 後端 + 重抓）
+function sendEditLeave(payload,orig,newVals){
+  const apply=(arr)=>{const t=arr.find(x=>String(x.id)===String(orig.id)||(x.name===orig.name&&x.date===orig.date&&x.startTime===orig.startTime));
+    if(t){t.type=newVals.type;t.date=newVals.date;t.startTime=newVals.startTime;t.endTime=newVals.endTime;t.hours=newVals.hours;t.reason=newVals.reason;t.status=newVals.status;t.duration=`${newVals.startTime}~${newVals.endTime}（${newVals.hours}小時）`;}};
+  apply(localLeave);apply(cloudLeave);
+  saveLoc();updPend();
+  fetch(SURL,{method:'POST',body:JSON.stringify(payload)})
+    .then(r=>r.json()).then(d=>{
+      if(!d.success)toast('⚠️ '+(d.msg||'更新失敗'));
+      loadCloud(()=>loadEditLeave());
+    }).catch(()=>{});
+  toast('已修改請假記錄 ✅');
+}
+
+function sendEditOT(payload,orig,newVals){
+  const apply=(arr)=>{const t=arr.find(x=>String(x.id)===String(orig.id)||(x.name===orig.name&&x.date===orig.date&&x.startTime===orig.startTime));
+    if(t){t.date=newVals.date;t.startTime=newVals.startTime;t.endTime=newVals.endTime;t.hours=newVals.hours;t.reason=newVals.reason;t.status=newVals.status;}};
+  apply(localOT);apply(cloudOT);
+  saveLoc();updPend();
+  fetch(SURL,{method:'POST',body:JSON.stringify(payload)})
+    .then(r=>r.json()).then(d=>{
+      if(!d.success)toast('⚠️ '+(d.msg||'更新失敗'));
+      loadCloud(()=>loadEditOT());
+    }).catch(()=>{});
+  toast('已修改加班記錄 ✅');
 }
 
 function renEmpList(){
@@ -1257,6 +1467,8 @@ setInterval(()=>{
       renReviews();
       // 若正在修改打卡，刷新清單
       if(document.getElementById('editEmpSel').value&&document.getElementById('editDate').value)loadEditPunch();
+      if(document.getElementById('editLvEmpSel').value)loadEditLeave();
+      if(document.getElementById('editOtEmpSel').value)loadEditOT();
     }
   });
 },60*1000);
