@@ -860,6 +860,13 @@ function submitMakeup(){
   if(!reason){toast('請填寫漏打原因');return;}
   const emp=EMPS.find(e=>e.name===selEmp)||{};
 
+  // 補打卡上班時間限 05:00~22:00；且 +9 小時不可跨過午夜（24:00）
+  if(inTime){
+    const im=toMins(inTime);
+    if(im<5*60||im>22*60){toast('⚠️ 上班時間需在 05:00~22:00 之間');return;}
+    if(im+9*60>24*60){toast('⚠️ 上班時間過晚，下班會跨到隔天。請確認時間或分開補上下班卡');return;}
+  }
+
   // 判斷該日是否為假日或國定假日
   const mkDate=new Date(date+'T00:00:00');
   const mkDow=mkDate.getDay();
@@ -913,7 +920,12 @@ let recPunchMap={};
 const EMP_EDITABLE_PUNCH=['正常','遲到','補登'];
 function renRec(){
   const c=document.getElementById('recordList');
-  const all=getMergedPunch().filter(r=>!selEmp||r.name===selEmp);
+  // 沒選員工就提示先選（這樣才知道顯示誰的修改/刪除鈕）
+  if(!selEmp){
+    c.innerHTML='<p style="text-align:center;color:#A04000;padding:1.5rem;font-size:15px">⚠️ 請先回首頁上方選擇您的姓名，才能查看與修改自己的打卡記錄</p>';
+    return;
+  }
+  const all=getMergedPunch().filter(r=>r.name===selEmp);
   const sorted=[...all].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   if(!sorted.length){c.innerHTML='<p class="loading">尚無打卡記錄</p>';return;}
   const stColor={
@@ -989,11 +1001,14 @@ function empDelPunch(i){
 let lvRecMap={};
 function renLvRec(){
   const c=document.getElementById('leaveRecList');
-  const isAdm=localStorage.getItem('adm')==='1';
+  if(!selEmp){
+    c.innerHTML='<p style="text-align:center;color:#A04000;padding:1.5rem;font-size:15px">⚠️ 請先回首頁上方選擇您的姓名，才能查看與修改自己的假單/加班記錄</p>';
+    return;
+  }
   const all=[
     ...getMergedLeave().map(l=>({...l,kind:'請假'})),
     ...getMergedOT().map(o=>({...o,kind:'加班'}))
-  ].filter(x=>!selEmp||x.name===selEmp).sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+  ].filter(x=>x.name===selEmp).sort((a,b)=>String(b.id).localeCompare(String(a.id)));
   if(!all.length){c.innerHTML='<p class="loading">尚無記錄</p>';return;}
   lvRecMap={};
   c.innerHTML=all.map((x,i)=>{
@@ -1352,6 +1367,11 @@ function adminSinglePunch(){
   if(!date||!inTime){toast('請填寫日期和上班時間');return;}
   const emp=EMPS.find(e=>e.name===name)||{};
 
+  // 上班時間限 05:00~22:00；+9 小時不可跨午夜
+  const im0=toMins(inTime);
+  if(im0<5*60||im0>22*60){toast('⚠️ 上班時間需在 05:00~22:00 之間');return;}
+  if(im0+9*60>24*60){toast('⚠️ 上班時間過晚，下班會跨到隔天，請確認');return;}
+
   // 判斷該日是否為假日或國定假日
   const adDate=new Date(date+'T00:00:00');
   const adDow=adDate.getDay();
@@ -1379,6 +1399,7 @@ function adminBatchPunch(){
   if(!name){toast('請選擇員工');return;}
   if(!startDate){toast('請選擇起始日期');return;}
   if(batchDays.size===0){toast('請選擇補打的日期');return;}
+  if(inTime){const bm=toMins(inTime);if(bm<5*60||bm>22*60){toast('⚠️ 上班時間需在 05:00~22:00 之間');return;}}
   const start=new Date(startDate);
   const dates=[];
   for(let i=0;i<7;i++){
