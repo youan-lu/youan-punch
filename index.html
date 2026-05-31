@@ -320,7 +320,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
 // 系統會偵測到版本變了，自動清快取重載一次，連 LINE 內建瀏覽器也會吃到新版。
-const APP_VERSION='2026.06.01.1';
+const APP_VERSION='2026.06.01.2';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -480,6 +480,9 @@ const WEEKDAY_BREAKS=[[8*60,8*60+30],[17*60+30,18*60]];
 // 正常班時段
 const NORMAL_START=8*60+30; // 08:30
 const NORMAL_END=17*60+30;  // 17:30
+// 正常上班打卡區間：8:20~8:40，只有在此區間上班才自動套用「上班+9小時」算下班
+const CLOCKIN_MIN=8*60+20;  // 08:20
+const CLOCKIN_MAX=8*60+40;  // 08:40
 const OT_AM_START=6*60;     // 06:00
 const OT_AM_END=8*60;       // 08:00
 const OT_PM_START=18*60;    // 18:00
@@ -903,11 +906,10 @@ function submitMakeup(){
   if(!reason){toast('請填寫漏打原因');return;}
   const emp=EMPS.find(e=>e.name===selEmp)||{};
 
-  // 補打卡上班時間限 05:00~22:00；且 +9 小時不可跨過午夜（24:00）
+  // 補打卡上班時間限 05:00~22:00
   if(inTime){
     const im=toMins(inTime);
     if(im<5*60||im>22*60){toast('⚠️ 上班時間需在 05:00~22:00 之間');return;}
-    if(im+9*60>24*60){toast('⚠️ 上班時間過晚，下班會跨到隔天。請確認時間或分開補上下班卡');return;}
   }
 
   // 判斷該日是否為假日或國定假日
@@ -917,18 +919,27 @@ function submitMakeup(){
   const mkShift=mkIsOT?'加班':'正常班';
   const mkStatus=mkIsOT?'加班':'補登';
 
-  // 計算正確的下班時間：上班時間 + 9小時（8小時工作+1小時午休）
+  // 下班時間計算規則：
+  // 只有「上班時間在 8:20~8:40（正常上班時段）」才自動套用「上班+9小時」；
+  // 其他時段（例如請假晚到 12:30 才上班）不自動算，必須自己填下班時間，避免算錯。
   let actualOutTime=outTime;
   if(inTime){
     const inMins=toMins(inTime);
-    const expectedOut=inMins+9*60;
-    actualOutTime=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;
+    const isNormalIn=(inMins>=CLOCKIN_MIN && inMins<=CLOCKIN_MAX);
+    if(isNormalIn && !outTime){
+      const expectedOut=inMins+9*60;
+      actualOutTime=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;
+    }else if(!isNormalIn && !outTime){
+      toast('⚠️ 上班非正常時段（08:20~08:40），請一併填寫「下班時間」');
+      return;
+    }
+    // 若使用者有自己填 outTime，一律以使用者填的為準（不覆蓋）
   }
 
   if(inTime){
     localPunch.push({name:selEmp,dept:emp.dept||'',date,type:'上班',time:inTime,status:mkStatus,shift:mkShift});
   }
-  if(inTime){
+  if(actualOutTime){
     localPunch.push({name:selEmp,dept:emp.dept||'',date,type:'下班',time:actualOutTime,status:mkStatus,shift:mkShift});
   }
   saveLoc();updPanel();
@@ -1327,10 +1338,9 @@ function adminSinglePunch(){
   if(!date||!inTime){toast('請填寫日期和上班時間');return;}
   const emp=EMPS.find(e=>e.name===name)||{};
 
-  // 上班時間限 05:00~22:00；+9 小時不可跨午夜
+  // 上班時間限 05:00~22:00
   const im0=toMins(inTime);
   if(im0<5*60||im0>22*60){toast('⚠️ 上班時間需在 05:00~22:00 之間');return;}
-  if(im0+9*60>24*60){toast('⚠️ 上班時間過晚，下班會跨到隔天，請確認');return;}
 
   // 判斷該日是否為假日或國定假日
   const adDate=new Date(date+'T00:00:00');
@@ -1339,16 +1349,21 @@ function adminSinglePunch(){
   const adShift=adIsOT?'加班':'正常班';
   const adStatus=adIsOT?'加班':'管理員補打';
 
-  // 下班時間以上班+9小時為準
-  const inMins=toMins(inTime);
-  const expectedOut=inMins+9*60;
-  const actualOut=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;
+  // 下班時間：上班在 8:20~8:40 才自動 +9；否則需管理員自己填下班時間
+  let actualOut=outTime;
+  const isNormalIn=(im0>=CLOCKIN_MIN && im0<=CLOCKIN_MAX);
+  if(isNormalIn && !outTime){
+    const expectedOut=im0+9*60;
+    actualOut=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;
+  }else if(!isNormalIn && !outTime){
+    toast('⚠️ 上班非正常時段（08:20~08:40），請一併填寫「下班時間」');return;
+  }
 
   localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:adStatus,shift:adShift});
-  localPunch.push({name,dept:emp.dept||'',date,type:'下班',time:actualOut,status:adStatus,shift:adShift});
+  if(actualOut)localPunch.push({name,dept:emp.dept||'',date,type:'下班',time:actualOut,status:adStatus,shift:adShift});
   saveLoc();updPanel();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'adminPunch',name,dept:emp.dept||'',date,inTime,outTime:actualOut,isWeekend:adIsOT})}).catch(()=>{});
-  toast(`已為 ${name} 補打卡 ✅ 下班時間：${actualOut}`);
+  toast(`已為 ${name} 補打卡 ✅${actualOut?' 下班時間：'+actualOut:''}`);
 }
 
 function adminBatchPunch(){
