@@ -320,7 +320,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
 // 系統會偵測到版本變了，自動清快取重載一次，連 LINE 內建瀏覽器也會吃到新版。
-const APP_VERSION='2026.06.01.2';
+const APP_VERSION='2026.06.01.3';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -1540,7 +1540,8 @@ function openEditModal(ctx){
   let html='';
   if(ctx.kind==='打卡'){
     html+=field('時間','time','em_time',r.time||'');
-    if(!ctx.byEmployee)html+=selField('班別','em_shift',['正常班','加班'],r.shift||'正常班');
+    // 時間與班別都可改（員工、管理員皆然）
+    html+=selField('班別','em_shift',['正常班','加班'],r.shift||'正常班');
   }else if(ctx.kind==='請假'){
     html+=selField('假別','em_type',LEAVE_TYPES,r.type||'特休');
     html+=field('請假日期','date','em_date',r.date||'');
@@ -1571,11 +1572,11 @@ function saveEditModal(){
   if(ctx.kind==='打卡'){
     const t=v('em_time');
     if(!/^\d{2}:\d{2}$/.test(t)){toast('時間格式錯誤');return;}
+    const shift=v('em_shift')||'正常班';
     if(ctx.byEmployee){
       closeEditModal();
-      doSavePunchEdit(r,t,ctx.after);
+      doSavePunchEdit(r,t,shift,ctx.after);
     }else{
-      const shift=v('em_shift')||'正常班';
       closeEditModal();
       doSaveAdminPunchEdit(r,t,shift,ctx.after);
     }
@@ -1608,11 +1609,9 @@ function saveEditModal(){
 }
 
 // 打卡修改的實際送出（員工端，限正常/遲到/補登）
-function doSavePunchEdit(r,newTime,after){
+function doSavePunchEdit(r,newTime,shift,after){
   const emp=EMPS.find(e=>e.name===r.name)||{};
-  const ed=new Date(r.date+'T00:00:00');
-  const edIsOT=(ed.getDay()===0||ed.getDay()===6)||isHoliday(r.date);
-  const edShift=edIsOT?'加班':'正常班';
+  const edShift=shift||r.shift||'正常班';
   const lp=localPunch.find(p=>p.name===r.name&&String(p.date)===r.date&&p.type===r.type&&p.time===r.time);
   if(lp){lp.time=newTime;lp.shift=edShift;}
   else localPunch.push({name:r.name,dept:emp.dept||'',date:r.date,type:r.type,time:newTime,status:r.status,shift:edShift});
@@ -1621,7 +1620,7 @@ function doSavePunchEdit(r,newTime,after){
   saveLoc();updPanel();if(after)after();
   fetch(SURL,{method:'POST',body:JSON.stringify({
     action:'editPunch',byEmployee:true,name:r.name,dept:emp.dept||'',
-    date:r.date,type:r.type,oldTime:r.time,newTime,shift:edShift,keepStatus:r.status,isWeekend:edIsOT
+    date:r.date,type:r.type,oldTime:r.time,newTime,shift:edShift,keepStatus:r.status
   })}).then(()=>loadCloud(()=>{if(after)after();})).catch(()=>{});
   toast(`已修改 ${r.type}時間為 ${newTime} ✅`);
 }
