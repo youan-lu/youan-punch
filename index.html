@@ -320,7 +320,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
 // 系統會偵測到版本變了，自動清快取重載一次，連 LINE 內建瀏覽器也會吃到新版。
-const APP_VERSION='2026.06.01.7';
+const APP_VERSION='2026.06.01.8';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -981,6 +981,11 @@ function goHome(){
 let recPunchMap={};
 // 員工可自行修改/刪除的打卡狀態（自己打卡或補登的）
 const EMP_EDITABLE_PUNCH=['正常','遲到','補登'];
+function punchDot(type){
+  if(type==='上班'||type==='請假開始')return '🟢';
+  if(type==='下班'||type==='請假結束')return '🔴';
+  return '🔴';
+}
 function renRec(){
   const c=document.getElementById('recordList');
   // 沒選員工就提示先選（這樣才知道顯示誰的修改/刪除鈕）
@@ -1008,7 +1013,7 @@ function renRec(){
     </div>`:'';
     return`<div class="item">
       <div class="item-name">${r.dept||''}｜${r.name} <span style="font-size:11px;color:#aaa">${r.date}</span></div>
-      <div class="item-detail">${r.type==='上班'?'🟢':'🔴'} ${r.type} ${r.time}${shiftLabel}
+      <div class="item-detail">${punchDot(r.type)} ${r.type} ${r.time}${shiftLabel}
         <span style="color:${stColor[r.status]||'#888'};font-weight:700;font-size:12px;margin-left:6px">${r.status}</span>
       </div>
       ${btns}
@@ -1148,7 +1153,7 @@ function loadEditPunch(){
   c.innerHTML=recs.map(r=>`
     <div class="punch-edit-row">
       <div style="font-size:14px;color:#333">
-        ${r.type==='上班'?'🟢':'🔴'} <strong>${r.type}</strong> ${r.time}
+        ${punchDot(r.type)} <strong>${r.type}</strong> ${r.time}
         ${r.shift?`<span style="font-size:11px;color:#6C3483;margin-left:4px">[${r.shift}]</span>`:''}
         <span style="font-size:12px;color:#888;margin-left:6px">${r.status}</span>
       </div>
