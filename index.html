@@ -330,7 +330,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
     </div>
     <div class="card">
       <div class="card-title">📊 每日出勤統計</div>
-      <p style="font-size:13px;color:#555;margin-bottom:10px">系統每天 18:30 自動產生當天統計到「每日出勤統計」分頁。列出「沒完成打卡」的人：只看平日，需上班+下班兩筆才算完成，上班晚於 08:40 標「遲到」；當天有請假或加班的人不算缺打卡。下方按鈕可手動補產生指定日期或區間。</p>
+      <p style="font-size:13px;color:#555;margin-bottom:10px">系統每天 18:30 自動產生當天統計到「每日出勤統計」分頁。列出「沒完成打卡」的人：只看平日，需上班+下班兩筆才算完成，上班晚於 08:40 標「遲到」；當天有請假或加班的人不算缺打卡。盧廷泰、蒲麗玉缺卡時系統會自動補打卡（上班08:20~08:40隨機、下班+9小時，標「系統自動補登」），不列入未完成名單。下方按鈕可手動補產生指定日期或區間。</p>
       <label>單日產生（預設今天）</label>
       <input type="date" id="attDate">
       <button class="big-btn" style="background:#1A5276;margin-top:8px" onclick="buildAttendance()">📊 產生這一天的統計</button>
@@ -372,7 +372,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #AED6F1;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.06.09.3';
+const APP_VERSION='2026.06.09.4';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
