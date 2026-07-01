@@ -365,7 +365,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.06.20.1';
+const APP_VERSION='2026.06.29.1';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -1191,13 +1191,22 @@ function doSaveAdminPunchEdit(r,newTime,shift,after){
 
 function doDelPunch(name,date,type,dept,time){
   if(!confirm(`確定刪除 ${name} ${date} ${type} ${time} 的打卡記錄？`))return;
-  const idx=localPunch.findIndex(r=>r.name===name&&String(r.date)===date&&r.type===type&&r.time===time);
-  if(idx>=0)localPunch.splice(idx,1);
-  const cidx=cloudPunch.findIndex(r=>r.name===name&&String(r.date)===date&&r.type===type&&r.time===time);
-  if(cidx>=0)cloudPunch.splice(cidx,1);
-  saveLoc();updPanel();loadEditPunch();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'deletePunch',name,dept,date,type,time})}).then(()=>loadCloud(()=>loadEditPunch())).catch(()=>{});
-  toast(`已刪除打卡記錄 ✅`);
+  toast('刪除中…');
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'deletePunch',name,dept,date,type,time})})
+    .then(r=>r.json())
+    .then(res=>{
+      if(res&&res.success){
+        toast('已刪除打卡記錄 ✅');
+        loadCloud(()=>loadEditPunch());
+      }else{
+        toast('刪除失敗：'+((res&&res.msg)||'後端未刪除，請截圖告知'),4000);
+        loadCloud(()=>loadEditPunch());
+      }
+    })
+    .catch(err=>{
+      toast('連線失敗，未刪除：'+err,4000);
+      loadCloud(()=>loadEditPunch());
+    });
 }
 
 const LEAVE_TYPES=['特休','補休','病假','事假','婚假','喪假','產假','陪產檢假','公假','歲時祭儀','其他'];
@@ -1527,10 +1536,10 @@ function doSavePunchEdit(r,newTime,shift,after){
     }).catch(()=>{toast('⚠️ 網路不穩，請重新整理確認');loadCloud(()=>{if(after)after();});});
 }
 
-function toast(msg){
+function toast(msg,ms){
   const t=document.getElementById('toast');
   t.textContent=msg;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),3000);
+  setTimeout(()=>t.classList.remove('show'),ms||3000);
 }
 
 // ── 啟動時判斷登入狀態 ──
