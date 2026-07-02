@@ -335,6 +335,16 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
       <div id="attResult" style="margin-top:10px;font-size:13px;color:#4A9460;font-weight:600"></div>
     </div>
     <div class="card">
+      <div class="card-title">📋 月差勤結存表</div>
+      <p style="font-size:13px;color:#555;margin-bottom:10px">產生指定月份的差勤結存表，寫入「月差勤結存」分頁。每人一列，含應出勤日、實出勤日、遲到次數、加班時數、各假別本月已請時數，並自動處理到職/離職員工的計算區間。</p>
+      <div class="grid2">
+        <div><label>年</label><input type="number" id="mrYear" value="2026"></div>
+        <div><label>月</label><input type="number" id="mrMonth" value="6" min="1" max="12"></div>
+      </div>
+      <button class="big-btn" style="background:#2F5639;margin-top:8px" onclick="buildMonthlyReport()">📋 產生月差勤結存表</button>
+      <div id="mrResult" style="margin-top:10px;font-size:13px;color:#4A9460;font-weight:600"></div>
+    </div>
+    <div class="card">
       <div class="card-title">🔑 修改管理員密碼</div>
       <label>目前密碼</label><input type="password" id="apOld" placeholder="目前管理員密碼">
       <label>新密碼</label><input type="password" id="apNew" placeholder="至少 4 碼">
@@ -365,7 +375,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.07.01.1';
+const APP_VERSION='2026.07.02.1';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -1433,6 +1443,21 @@ function rebuildAttendanceRange(){
       let d;try{d=JSON.parse(raw);}catch(e){res.textContent='❌ 回應格式錯誤：'+raw.substring(0,80);res.style.color='#C75B47';return;}
       if(d.success){res.textContent=`✅ 已處理 ${d.days} 天，共 ${d.added} 筆未完成打卡，已寫入「每日出勤統計」分頁`;res.style.color=d.added>0?'#B5701F':'#4A9460';}
       else{res.textContent='❌ '+(d.error||d.msg||'未知錯誤');res.style.color='#C75B47';}
+    }).catch(err=>{res.textContent='❌ 網路錯誤：'+err;res.style.color='#C75B47';});
+}
+
+// 產生月差勤結存表
+function buildMonthlyReport(){
+  const year=document.getElementById('mrYear').value;
+  const month=document.getElementById('mrMonth').value;
+  const res=document.getElementById('mrResult');
+  if(!year||!month){res.textContent='⚠️ 請輸入年和月';res.style.color='#B5701F';return;}
+  res.textContent='⏳ 計算中，請稍候…';res.style.color='#888';
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'buildMonthlyReport',year,month})})
+    .then(r=>r.text()).then(raw=>{
+      let d;try{d=JSON.parse(raw);}catch(e){res.textContent='❌ 回應格式錯誤：'+raw.substring(0,80);res.style.color='#C75B47';return;}
+      if(d.success){res.textContent=`✅ 已產生 ${d.ym} 差勤結存，共 ${d.count} 人，請看「月差勤結存」分頁`;res.style.color='#4A9460';}
+      else{res.textContent='❌ '+(d.msg||'未知錯誤');res.style.color='#C75B47';}
     }).catch(err=>{res.textContent='❌ 網路錯誤：'+err;res.style.color='#C75B47';});
 }
 
