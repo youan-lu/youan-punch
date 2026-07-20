@@ -156,7 +156,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
   <div class="card">
     <div class="card-title">📋 申請請假</div>
     <label>假別</label>
-    <select id="leaveType"><option>特休</option><option>補休</option><option>病假</option><option>事假</option><option>婚假</option><option>喪假</option><option>產假</option><option>陪產檢假</option><option>公假</option><option>歲時祭儀</option><option>其他</option></select>
+    <select id="leaveType"><option>特休</option><option>補休</option><option>病假</option><option>事假</option><option>婚假</option><option>喪假</option><option>產假</option><option>陪產檢假</option><option>公假</option><option>天然災害假</option><option>歲時祭儀</option><option>其他</option></select>
     <label>請假日期</label><input type="date" id="leaveDate">
     <div class="grid2">
       <div><label>請假開始時間</label><div class="time-sel" id="lvStartSel"></div></div>
@@ -375,7 +375,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.07.02.1';
+const APP_VERSION='2026.07.20.1';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -835,15 +835,53 @@ function punch(type){
     const emp=EMPS.find(e=>e.name===selEmp)||{};
     const outRec={name:selEmp,dept:emp.dept||'',date:today,type:'下班',time:expectedOutStr,status,shift};
     localPunch.push(outRec);saveLoc();updPanel();
-    fetch(SURL,{method:'POST',body:JSON.stringify({action:'punch',name:selEmp,dept:emp.dept||'',type:'out',date:today,status,shift,fixedTime:expectedOutStr})}).catch(()=>toast('⚠️ 網路不穩，資料已存本機'));
-    toast(`${selEmp} ${isOTDay?'假日加班':''}下班打卡成功 ${expectedOutStr}`);
+    postPunchReliable({action:'punch',name:selEmp,dept:emp.dept||'',type:'out',date:today,status,shift,fixedTime:expectedOutStr},
+      `${selEmp} ${isOTDay?'假日加班':''}下班打卡成功 ${expectedOutStr}`, outRec);
     return;
   }
   const emp=EMPS.find(e=>e.name===selEmp)||{};
   const rec={name:selEmp,dept:emp.dept||'',date:today,type:'上班',time:ts,status,shift};
   localPunch.push(rec);saveLoc();updPanel();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'punch',name:selEmp,dept:emp.dept||'',type:'in',date:today,status,shift})}).catch(()=>toast('⚠️ 網路不穩，資料已存本機'));
-  toast(`${selEmp} ${isOTDay?'假日加班':''}上班打卡成功 ${ts}`);
+  postPunchReliable({action:'punch',name:selEmp,dept:emp.dept||'',type:'in',date:today,status,shift},
+    `${selEmp} ${isOTDay?'假日加班':''}上班打卡成功 ${ts}`, rec);
+}
+
+// ★ 可靠送出：等後端確認成功才顯示成功；失敗自動重試最多3次；都失敗才明確提示 ★
+function postPunchReliable(payload, successMsg, localRec, attempt){
+  attempt = attempt || 1;
+  const MAX = 3;
+  if(attempt===1) toast('打卡中…');
+  fetch(SURL,{method:'POST',body:JSON.stringify(payload)})
+    .then(r=>r.text())
+    .then(raw=>{
+      let d=null;
+      try{ d=JSON.parse(raw); }catch(e){ d=null; }
+      if(d && d.success){
+        toast(successMsg);
+        loadCloud(()=>{});           // 同步雲端最新資料
+      }else{
+        retryOrFail(payload, successMsg, localRec, attempt, (d&&d.msg)||'後端未確認');
+      }
+    })
+    .catch(err=>{
+      retryOrFail(payload, successMsg, localRec, attempt, err);
+    });
+}
+
+function retryOrFail(payload, successMsg, localRec, attempt, reason){
+  const MAX = 3;
+  if(attempt < MAX){
+    toast(`連線不穩，重試中…(${attempt}/${MAX})`);
+    setTimeout(()=>postPunchReliable(payload, successMsg, localRec, attempt+1), 1000);
+  }else{
+    // 3次都失敗：移除本機那筆假成功記錄，明確告知員工
+    if(localRec){
+      const i=localPunch.findIndex(r=>r.name===localRec.name&&String(r.date)===String(localRec.date)&&r.type===localRec.type&&r.time===localRec.time);
+      if(i>=0) localPunch.splice(i,1);
+      saveLoc();updPanel();
+    }
+    toast('❌ 打卡失敗，請檢查網路後重新打卡',5000);
+  }
 }
 
 function selSeg(btn,g){
@@ -1035,7 +1073,7 @@ function renRec(){
     const shiftLabel=r.shift?`<span style="font-size:11px;padding:2px 8px;border-radius:8px;background:${r.shift==='加班'?'#EDE3F1':'#E8EFE7'};color:${shiftColor[r.shift]||'#888'};margin-left:5px">${r.shift}</span>`:'';
     const canEdit=selEmp && r.name===selEmp && EMP_EDITABLE_PUNCH.indexOf(r.status)>=0;
     const btns=canEdit?`<div class="punch-edit-btns" style="margin-top:8px"><button class="edit-btn" onclick="empEditPunch(${i})">修改</button><button class="del-btn" onclick="empDelPunch(${i})">🗑 刪除</button></div>`:'';
-    return`<div class="item"><div class="item-name">${r.dept||''}｜${r.name} <span style="font-size:11px;color:#aaa">${r.date}</span></div><div class="item-detail">${punchDot(r.type)} ${r.type} ${r.time}${shiftLabel}<span style="color:${stColor[r.status]||'#888'};font-weight:700;font-size:12px;margin-left:6px">${r.status}</span></div>${btns}</div>`;
+    return`<div class="item"><div class="item-name">${r.dept||''}｜${r.name}</div><div class="item-detail">${punchDot(r.type)} ${r.date}·${r.type} ${r.time}${shiftLabel}<span style="color:${stColor[r.status]||'#888'};font-weight:700;font-size:12px;margin-left:6px">${r.status}</span></div>${btns}</div>`;
   }).join('');
 }
 
@@ -1552,10 +1590,10 @@ function doSavePunchEdit(r,newTime,shift,after){
     }).catch(()=>{toast('⚠️ 網路不穩，請重新整理確認');loadCloud(()=>{if(after)after();});});
 }
 
-function toast(msg){
+function toast(msg,ms){
   const t=document.getElementById('toast');
   t.textContent=msg;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),3000);
+  setTimeout(()=>t.classList.remove('show'),ms||3000);
 }
 
 // ── 啟動時判斷登入狀態 ──
