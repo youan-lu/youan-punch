@@ -349,6 +349,16 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
       <div id="cfResult" style="margin-top:10px;font-size:13px;color:#4A9460;font-weight:600"></div>
     </div>
     <div class="card">
+      <div class="card-title">📦 月資料封存</div>
+      <p style="font-size:13px;color:#555;margin-bottom:10px">把指定月份的全部資料備份成獨立試算表，存到雲端硬碟「佑安打卡封存／年份」資料夾。系統每月 5 號 09:00 會自動封存上月；校對資料後也可隨時手動重新封存（會覆蓋同月舊檔）。<b>原試算表資料不會被刪除。</b></p>
+      <div class="grid2">
+        <div><label>年</label><input type="number" id="avYear" value="2026"></div>
+        <div><label>月</label><input type="number" id="avMonth" value="6" min="1" max="12"></div>
+      </div>
+      <button class="big-btn" style="background:#2F5639;margin-top:8px" onclick="archiveMonth()">📦 封存這個月的資料</button>
+      <div id="avResult" style="margin-top:10px;font-size:13px;color:#4A9460;font-weight:600"></div>
+    </div>
+    <div class="card">
       <div class="card-title">🔑 修改管理員密碼</div>
       <label>目前密碼</label><input type="password" id="apOld" placeholder="目前管理員密碼">
       <label>新密碼</label><input type="password" id="apNew" placeholder="至少 4 碼">
@@ -379,7 +389,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.07.20.2';
+const APP_VERSION='2026.07.20.3';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -1516,6 +1526,24 @@ function carryForward(){
       let d;try{d=JSON.parse(raw);}catch(e){res.textContent='❌ 回應格式錯誤：'+raw.substring(0,80);res.style.color='#C75B47';return;}
       if(d.success){res.textContent=`✅ 已將 ${d.from} 期末餘額結轉為 ${d.to} 期初，共 ${d.count} 人，請看「期初結存」分頁`;res.style.color='#4A9460';}
       else{res.textContent='❌ '+(d.msg||'未知錯誤');res.style.color='#C75B47';}
+    }).catch(err=>{res.textContent='❌ 網路錯誤：'+err;res.style.color='#C75B47';});
+}
+
+// 月資料封存
+function archiveMonth(){
+  const year=document.getElementById('avYear').value;
+  const month=document.getElementById('avMonth').value;
+  const res=document.getElementById('avResult');
+  if(!year||!month){res.textContent='⚠️ 請輸入年和月';res.style.color='#B5701F';return;}
+  if(!confirm(`確定要封存 ${year}年${month}月 的資料嗎？\n\n・會備份全部分頁到雲端硬碟「佑安打卡封存」\n・若同月已有封存檔，會刪除舊檔重新產生\n・原試算表資料不會被刪除`))return;
+  res.textContent='⏳ 封存中，資料量大時需要一點時間…';res.style.color='#888';
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'archiveMonth',year,month})})
+    .then(r=>r.text()).then(raw=>{
+      let d;try{d=JSON.parse(raw);}catch(e){res.textContent='❌ 回應格式錯誤：'+raw.substring(0,80);res.style.color='#C75B47';return;}
+      if(d.success){
+        res.innerHTML=`✅ 已封存 ${d.ym}，共 ${d.sheets} 個分頁${d.replaced>0?'（已覆蓋舊檔）':''}<br><a href="${d.url}" target="_blank" style="color:#3A6947;text-decoration:underline">開啟封存檔</a>`;
+        res.style.color='#4A9460';
+      } else {res.textContent='❌ '+(d.msg||'未知錯誤');res.style.color='#C75B47';}
     }).catch(err=>{res.textContent='❌ 網路錯誤：'+err;res.style.color='#C75B47';});
 }
 
