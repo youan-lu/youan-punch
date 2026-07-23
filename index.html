@@ -163,8 +163,8 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
       <div><label>請假結束時間</label><div class="time-sel" id="lvEndSel"></div></div>
     </div>
     <div id="lvHoursDisplay" style="text-align:center;margin-top:10px;font-size:15px;color:#3A6947;font-weight:700"></div>
-    <label>原因說明</label>
-    <textarea id="leaveReason" rows="3" placeholder="請簡述原因…"></textarea>
+    <label>原因說明<span style="font-weight:400;color:#888;font-size:12px">（非必填）</span></label>
+    <textarea id="leaveReason" rows="3" placeholder="可不填。如需說明再簡述原因…"></textarea>
     <button class="big-btn big-btn-green" onclick="submitLeave()">📤 送出請假申請</button>
     <p style="font-size:12px;color:#888;margin-top:8px;text-align:center">⏱ 管理員1小時內未回應將自動核准</p>
   </div>
@@ -186,11 +186,6 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
       <div><label>加班結束時間</label><div class="time-sel" id="otEndSel"></div></div>
     </div>
     <div id="otHoursDisplay" style="text-align:center;margin-top:10px;font-size:15px;color:#3A6947;font-weight:700"></div>
-    <label>計算方式</label>
-    <div class="seg-wrap" id="otCalcSegs">
-      <div class="seg on" data-v="加班費" onclick="selSeg(this,'otCalc')">加班費（×1.34）</div>
-      <div class="seg" data-v="補休" onclick="selSeg(this,'otCalc')">補休</div>
-    </div>
     <label>加班原因</label>
     <textarea id="otReason" rows="3" placeholder="請說明加班事由…"></textarea>
     <button class="big-btn big-btn-green" onclick="submitOT()">📤 送出加班申請</button>
@@ -389,7 +384,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.07.20.3';
+const APP_VERSION='2026.07.23.1';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -459,7 +454,7 @@ function getMergedOT(){
   return all;
 }
 
-let selEmp=null,selDur='全天',selOTType='平常日',selOTCalc='加班費';
+let selEmp=null,selDur='全天',selOTType='平常日';
 let selOTStart='',selOTEnd='';
 let selLvStart='',selLvEnd='';
 
@@ -899,13 +894,12 @@ function retryOrFail(payload, successMsg, localRec, attempt, reason){
 }
 
 function selSeg(btn,g){
-  const map={dur:'#durSegs',otType:'#otTypeSegs',otCalc:'#otCalcSegs'};
+  const map={dur:'#durSegs',otType:'#otTypeSegs'};
   const c=document.querySelector(map[g]);
   if(c)c.querySelectorAll('.seg').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   if(g==='dur')selDur=btn.dataset.v;
   if(g==='otType'){selOTType=btn.dataset.v;renderOTTimes();}
-  if(g==='otCalc')selOTCalc=btn.dataset.v;
 }
 
 function toggleDay(btn){
@@ -972,9 +966,9 @@ function submitOT(){
   if(parseFloat(hours)<=0){toast('結束時間需晚於開始時間');return;}
   const emp=EMPS.find(e=>e.name===selEmp)||{};
   const id=nowId();
-  const req={id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,calcType:selOTCalc,reason,status:'待審核'};
+  const req={id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,reason,status:'待審核'};
   localOT.push(req);saveLoc();updPend();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'overtime',id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,calcType:selOTCalc,reason})}).catch(()=>{});
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'overtime',id,name:selEmp,dept:emp.dept||'',date,startTime:selOTStart,endTime:selOTEnd,hours,reason})}).catch(()=>{});
   toast(`${selEmp} 加班申請已送出 ✅`);
   document.getElementById('otReason').value='';
   setTimeout(()=>autoApproveOT(id),60*60*1000);
