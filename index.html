@@ -145,7 +145,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
         <div class="m-item" onclick="goPage('record')"><div class="m-circle mc4">📅</div><div class="m-lbl">打卡記錄</div></div>
         <div class="m-item" onclick="goPage('leaveRec')"><div class="m-circle mc5">📝</div><div class="m-lbl">假單記錄</div></div>
         <div class="m-item" onclick="goPage('balance')"><div class="m-circle mc1">📊</div><div class="m-lbl">我的餘額</div></div>
-        <div class="m-item" onclick="goPage('admin')"><div class="m-circle mc6">⚙️</div><div class="m-lbl">管理員<span class="pend-dot" id="pendDot" style="display:none"></span></div></div>
+        <div class="m-item" id="menuAdmin" style="display:none" onclick="goPage('admin')"><div class="m-circle mc6">⚙️</div><div class="m-lbl">管理員<span class="pend-dot" id="pendDot" style="display:none"></span></div></div>
       </div>
     </div>
   </div>
@@ -395,7 +395,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.07.23.4';
+const APP_VERSION='2026.07.28.1';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -730,10 +730,11 @@ function doLogin(){
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'login',empNo,password:pwd})})
     .then(r=>r.json()).then(d=>{
       if(d.success){
-        const info={empNo:d.empNo,name:d.name,dept:d.dept};
+        const info={empNo:d.empNo,name:d.name,dept:d.dept,isAdmin:!!d.isAdmin};
         localStorage.setItem('loginEmp',JSON.stringify(info));
         localStorage.removeItem('adm');   // ★ 新員工登入，清除上一人的管理員狀態
         setLoggedInEmp(d.name,d.dept,d.empNo);
+        toggleAdminEntry(!!d.isAdmin);    // ★ 依身分顯示/隱藏管理員入口
         showApp();goHome();
         document.getElementById('loginPwd').value='';
         toast(`歡迎 ${d.name} ✅`);
@@ -1090,7 +1091,7 @@ function goPage(p){
   if(p==='record')renRec();
   if(p==='leaveRec')renLvRec();
   if(p==='balance')loadMyBalance();
-  if(p==='admin'&&isAdminValid())showAdm();
+  if(p==='admin'&&isCurrentAdmin())showAdm();
 }
 
 function goHome(){
@@ -1243,6 +1244,13 @@ function adminLogout(){
   document.getElementById('adminPanel').style.display='none';
   document.getElementById('adminLock').style.display='block';
   document.getElementById('adminPwd').value='';toast('已登出');
+}
+function isCurrentAdmin(){
+  try{const info=JSON.parse(localStorage.getItem('loginEmp')||'null');return !!(info&&info.isAdmin);}catch(e){return false;}
+}
+function toggleAdminEntry(show){
+  const m=document.getElementById('menuAdmin');
+  if(m)m.style.display=show?'':'none';
 }
 function isAdminValid(){
   if(localStorage.getItem('adm')!=='1')return false;
@@ -1630,7 +1638,7 @@ setInterval(()=>{
     const id=openSub.id;
     if(id==='page-record')renRec();
     else if(id==='page-leaveRec')renLvRec();
-    else if(id==='page-admin'&&isAdminValid()){
+    else if(id==='page-admin'&&isCurrentAdmin()){
       renReviews();
       if(document.getElementById('editEmpSel').value&&document.getElementById('editDate').value)loadEditPunch();
       if(document.getElementById('editLvEmpSel').value)loadEditLeave();
@@ -1724,7 +1732,7 @@ function toast(msg,ms){
 (function initAuth(){
   try{
     const info=JSON.parse(localStorage.getItem('loginEmp')||'null');
-    if(info&&info.name){setLoggedInEmp(info.name,info.dept,info.empNo);showApp();}
+    if(info&&info.name){setLoggedInEmp(info.name,info.dept,info.empNo);toggleAdminEntry(!!info.isAdmin);showApp();}
     else{showLogin();}
   }catch(e){showLogin();}
 })();
