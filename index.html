@@ -270,6 +270,20 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
       <div id="editPunchList" style="margin-top:12px"></div>
     </div>
     <div class="card">
+      <div class="card-title">➕ 代員工新增請假</div>
+      <label>員工</label><select id="alEmpSel"></select>
+      <label>假別</label><select id="alType"><option>特休</option><option>補休</option><option>病假</option><option>事假</option><option>婚假</option><option>喪假</option><option>產假</option><option>陪產檢假</option><option>公假</option><option>天然災害假</option><option>歲時祭儀</option><option>其他</option></select>
+      <label>日期</label><input type="date" id="alDate">
+      <div class="grid2">
+        <div><label>開始時間</label><input type="time" id="alStart" value="08:20"></div>
+        <div><label>結束時間</label><input type="time" id="alEnd" value="17:20"></div>
+      </div>
+      <label>原因說明（非必填）</label>
+      <textarea id="alReason" rows="2" placeholder="可不填…"></textarea>
+      <button class="big-btn big-btn-green" style="margin-top:8px" onclick="adminAddLeave()">➕ 新增並核准</button>
+      <div id="alResult" style="margin-top:8px;font-size:13px;font-weight:600"></div>
+    </div>
+    <div class="card">
       <div class="card-title">📋 修改請假記錄</div>
       <label>員工</label><select id="editLvEmpSel" onchange="loadEditLeave()"></select>
       <div id="editLeaveList" style="margin-top:12px"><p style="color:#888;font-size:14px">請選擇員工</p></div>
@@ -395,7 +409,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.07.28.1';
+const APP_VERSION='2026.08.03.1';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -679,7 +693,7 @@ function reconcileLocalLeaveOT(){
 loadCloud();
 
 function buildSels(){
-  ['adminEmpSel','batchEmpSel','editEmpSel','editLvEmpSel','editOtEmpSel'].forEach(id=>{
+  ['adminEmpSel','batchEmpSel','editEmpSel','editLvEmpSel','editOtEmpSel','alEmpSel'].forEach(id=>{
     const s=document.getElementById(id);if(!s)return;
     const c=s.value;
     s.innerHTML='<option value="">-- 請選擇員工 --</option>';
@@ -1268,6 +1282,39 @@ function showAdm(){
   buildSels();buildResetSel();renEmpList();
   loadCloud(()=>{renReviews();loadEditLeave();loadEditOT();buildResetSel();});
 }
+
+// 管理員代員工新增請假（直接核准並連動打卡）
+function adminAddLeave(){
+  const name=document.getElementById('alEmpSel').value;
+  const type=document.getElementById('alType').value;
+  const date=document.getElementById('alDate').value;
+  const st=document.getElementById('alStart').value;
+  const et=document.getElementById('alEnd').value;
+  const reason=document.getElementById('alReason').value.trim();
+  const res=document.getElementById('alResult');
+  if(!name){res.textContent='⚠️ 請選擇員工';res.style.color='#B5701F';return;}
+  if(!date){res.textContent='⚠️ 請選擇日期';res.style.color='#B5701F';return;}
+  if(!st||!et){res.textContent='⚠️ 請填開始和結束時間';res.style.color='#B5701F';return;}
+  // 算時數
+  const toMin=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
+  let mins=toMin(et)-toMin(st);
+  // 跨越午休 12:00-13:00 扣 1 小時
+  if(toMin(st)<toMin('12:00')&&toMin(et)>toMin('13:00'))mins-=60;
+  if(mins<=0){res.textContent='⚠️ 結束時間需晚於開始時間';res.style.color='#B5701F';return;}
+  const hours=(mins/60).toFixed(1);
+  const emp=EMPS.find(e=>e.name===name)||{};
+  if(!confirm(`確定幫 ${name} 新增 ${type} ${date} ${st}~${et}（${hours}小時）並直接核准嗎？`))return;
+  res.textContent='處理中…';res.style.color='#888';
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'leave',byAdmin:true,name,dept:emp.dept||'',leaveType:type,date,startTime:st,endTime:et,hours,reason})})
+    .then(r=>r.json()).then(d=>{
+      if(d.success){
+        res.textContent=`✅ 已幫 ${name} 新增並核准 ${type}（${hours}小時）`;res.style.color='#4A9460';
+        document.getElementById('alReason').value='';
+        loadCloud(()=>{loadEditLeave();renReviews();});
+      }else{res.textContent='❌ '+(d.msg||'新增失敗');res.style.color='#C75B47';}
+    }).catch(err=>{res.textContent='❌ 網路錯誤：'+err;res.style.color='#C75B47';});
+}
+
 function buildResetSel(){
   const s=document.getElementById('resetEmpSel');if(!s)return;
   const c=s.value;
