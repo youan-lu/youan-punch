@@ -409,7 +409,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.08.03.1';
+const APP_VERSION='2026.08.03.2';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -661,7 +661,7 @@ function loadCloud(cb){
         cloudLeave=d.leave||[];
         cloudOT=d.overtime||[];
         if(d.employees&&d.employees.length){
-          EMPS=d.employees.map(e=>({name:e.name,dept:e.dept,empNo:e.empNo||''}));
+          EMPS=d.employees.map(e=>({name:e.name,dept:e.dept,empNo:e.empNo||'',quitted:!!e.quitted}));
           localStorage.setItem(LS_EMPS,JSON.stringify(EMPS));
         }
         reconcileLocalPunch();
@@ -699,7 +699,7 @@ function buildSels(){
     s.innerHTML='<option value="">-- 請選擇員工 --</option>';
     EMPS.forEach(e=>{
       const o=document.createElement('option');
-      o.value=e.name;o.textContent=`${e.dept}｜${e.name}`;
+      o.value=e.name;o.textContent=`${e.dept}｜${e.name}`+(e.quitted?'（已離職）':'');
       s.appendChild(o);
     });
     if(c)s.value=c;
@@ -728,7 +728,7 @@ function buildLoginSel(){
   const s=document.getElementById('loginEmpSel');if(!s)return;
   const c=s.value;
   s.innerHTML='<option value="">-- 請選擇 --</option>';
-  EMPS.filter(e=>e.empNo).forEach(e=>{
+  EMPS.filter(e=>e.empNo && !e.quitted).forEach(e=>{
     const o=document.createElement('option');
     o.value=e.empNo;o.textContent=`${e.empNo}｜${e.name}`;
     s.appendChild(o);
@@ -1321,7 +1321,7 @@ function buildResetSel(){
   s.innerHTML='<option value="">-- 請選擇員工 --</option>';
   EMPS.filter(e=>e.empNo).forEach(e=>{
     const o=document.createElement('option');
-    o.value=e.empNo;o.textContent=`${e.empNo}｜${e.dept}｜${e.name}`;
+    o.value=e.empNo;o.textContent=`${e.empNo}｜${e.dept}｜${e.name}`+(e.quitted?'（已離職）':'');
     s.appendChild(o);
   });
   if(c)s.value=c;
