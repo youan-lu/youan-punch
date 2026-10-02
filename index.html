@@ -379,6 +379,17 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
       <div id="avResult" style="margin-top:10px;font-size:13px;color:#4A9460;font-weight:600"></div>
     </div>
     <div class="card">
+      <div class="card-title">🗄️ 搬移舊資料到封存分頁</div>
+      <p style="font-size:13px;color:#555;margin-bottom:10px">把指定年月<b>（含）以前</b>的「打卡記錄、請假記錄、加班記錄」搬到各自的封存分頁（打卡記錄_封存／請假記錄_封存／加班記錄_封存），原分頁會刪除對應列、變乾淨。<b>資料不會消失，只是移到封存分頁，仍留在這份試算表裡。</b>建議先確認該期間已完成「月資料封存」備份到雲端硬碟，再執行此動作。</p>
+      <div class="grid2">
+        <div><label>年</label><input type="number" id="arYear" value="2026"></div>
+        <div><label>月</label><input type="number" id="arMonth" value="8" min="1" max="12"></div>
+      </div>
+      <p style="font-size:12px;color:#888;margin:4px 0 8px">會搬移「到此年月為止（含）」的資料。例如輸入 8 月，就會搬走 6、7、8 月的資料，9月起的資料留在原分頁不動。</p>
+      <button class="big-btn" style="background:#8A6D3A;margin-top:4px" onclick="archiveOldRecordsToTab()">🗄️ 搬移舊資料</button>
+      <div id="arResult" style="margin-top:10px;font-size:13px;color:#4A9460;font-weight:600"></div>
+    </div>
+    <div class="card">
       <div class="card-title">🔑 修改管理員密碼</div>
       <label>目前密碼</label><input type="password" id="apOld" placeholder="目前管理員密碼">
       <label>新密碼</label><input type="password" id="apNew" placeholder="至少 4 碼">
@@ -409,7 +420,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.08.03.2';
+const APP_VERSION='2026.10.02.2';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -1673,6 +1684,25 @@ function archiveMonth(){
       let d;try{d=JSON.parse(raw);}catch(e){res.textContent='❌ 回應格式錯誤：'+raw.substring(0,80);res.style.color='#C75B47';return;}
       if(d.success){
         res.innerHTML=`✅ 已封存 ${d.ym}，共 ${d.sheets} 個分頁${d.replaced>0?'（已覆蓋舊檔）':''}<br><a href="${d.url}" target="_blank" style="color:#3A6947;text-decoration:underline">開啟封存檔</a>`;
+        res.style.color='#4A9460';
+      } else {res.textContent='❌ '+(d.msg||'未知錯誤');res.style.color='#C75B47';}
+    }).catch(err=>{res.textContent='❌ 網路錯誤：'+err;res.style.color='#C75B47';});
+}
+
+// 搬移舊資料到封存分頁
+function archiveOldRecordsToTab(){
+  const year=document.getElementById('arYear').value;
+  const month=document.getElementById('arMonth').value;
+  const res=document.getElementById('arResult');
+  if(!year||!month){res.textContent='⚠️ 請輸入年和月';res.style.color='#B5701F';return;}
+  if(!confirm(`確定要搬移 ${year}年${month}月（含）以前的「打卡記錄、請假記錄、加班記錄」到封存分頁嗎？\n\n・資料會移到 打卡記錄_封存／請假記錄_封存／加班記錄_封存 這幾個分頁\n・原分頁會刪除這些資料列\n・此動作無法復原，請先確認該期間已完成雲端硬碟封存備份`))return;
+  res.textContent='⏳ 搬移中，資料量大時需要一點時間…';res.style.color='#888';
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'archiveOldRecordsToTab',year,month})})
+    .then(r=>r.text()).then(raw=>{
+      let d;try{d=JSON.parse(raw);}catch(e){res.textContent='❌ 回應格式錯誤：'+raw.substring(0,80);res.style.color='#C75B47';return;}
+      if(d.success){
+        const detail=Object.keys(d.detail).map(k=>k+':'+d.detail[k].moved+'筆').join('、');
+        res.textContent=`✅ 已搬移 ${d.cutoff}（含）以前的資料，共 ${d.total} 筆（${detail}）`;
         res.style.color='#4A9460';
       } else {res.textContent='❌ '+(d.msg||'未知錯誤');res.style.color='#C75B47';}
     }).catch(err=>{res.textContent='❌ 網路錯誤：'+err;res.style.color='#C75B47';});
