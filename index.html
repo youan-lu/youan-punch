@@ -201,13 +201,17 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
     <div class="card-title">🔄 補打卡申請</div>
     <p style="font-size:13px;color:#4A9460;background:#E6F1E9;padding:8px 12px;border-radius:8px;margin-bottom:4px">✅ 補打卡送出後立即生效，試算表顯示「補登」</p>
     <label>補打日期</label><input type="date" id="mkDate">
+    <label>原因說明（必填）</label>
+    <textarea id="mkReason" rows="3" placeholder="請說明漏打卡原因…"></textarea>
+    <button class="big-btn big-btn-amber" onclick="quickMakeupOutOnly()">🔴 只補下班卡（自動抓上班+9小時）</button>
+    <p style="font-size:12px;color:#888;margin:4px 0 8px">適合「上班有準時打，只是忘記打下班」的情況——只要選日期，系統會自動讀取當天的上班卡時間、加9小時當作下班時間送出，不用自己選時間。</p>
+    <div style="border-top:1px dashed #D8D2C4;margin:12px 0 10px"></div>
+    <p style="font-size:12px;color:#888;margin-bottom:8px">其他情況（上班也忘記打、或下班時間不是整整9小時），用下面手動填：</p>
     <div class="grid2">
       <div><label>🟢 上班時間</label><input type="time" id="mkInTime"></div>
       <div><label>🔴 下班時間</label><input type="time" id="mkOutTime"></div>
     </div>
-    <label>原因說明（必填）</label>
-    <textarea id="mkReason" rows="3" placeholder="請說明漏打卡原因…"></textarea>
-    <button class="big-btn big-btn-green" onclick="submitMakeup()">📤 立即補打卡</button>
+    <button class="big-btn big-btn-green" onclick="submitMakeup()">📤 手動補打卡</button>
   </div>
 </div>
 
@@ -307,11 +311,13 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
       <div class="card-title">🔄 補打卡（單日）</div>
       <label>員工</label><select id="adminEmpSel"></select>
       <label>日期</label><input type="date" id="adminDate">
+      <button class="big-btn" style="background:#2F5639" onclick="quickAdminStandardDay()">🟢🔴 補上下班卡</button>
+      <p style="font-size:12px;color:#888;margin:8px 0">不用填時間，選員工+日期直接按：只缺一邊的話，自動用現有那筆時間±9小時推算；兩邊都沒有的話，用標準班8:30/17:30。其他情況（時間不是這樣算）用下面手動填：</p>
       <div class="grid2">
         <div><label>🟢 上班時間</label><input type="time" id="adminInTime"></div>
         <div><label>🔴 下班時間</label><input type="time" id="adminOutTime"></div>
       </div>
-      <button class="big-btn big-btn-green" onclick="adminSinglePunch()">✓ 補打卡</button>
+      <button class="big-btn big-btn-green" onclick="adminSinglePunch()">✓ 手動補打卡</button>
     </div>
     <div class="card">
       <div class="card-title">📆 批次補打卡（整週）</div>
@@ -420,7 +426,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.10.02.3';
+const APP_VERSION='2026.10.02.8';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -1071,6 +1077,29 @@ function autoApproveOT(id){
   toast(`⏰ ${target.name} 加班已自動核准`);
 }
 
+// 只補下班卡：自動讀當天已有的上班卡時間+9小時，不用自己選時間
+function quickMakeupOutOnly(){
+  if(!selEmp){toast('請先選擇員工');return;}
+  const date=document.getElementById('mkDate').value;
+  if(!date){toast('請選擇日期');return;}
+  {
+    const sel=new Date(date+'T00:00:00');
+    const tmr=new Date();tmr.setHours(0,0,0,0);tmr.setDate(tmr.getDate()+1);
+    if(sel.getTime()>tmr.getTime()){toast('⚠️ 補打卡最遠只能補到明天，不能補後天以後的日期');return;}
+  }
+  const dayPunch=getMergedPunch().filter(r=>r.name===selEmp&&String(r.date)===date);
+  const inRec=dayPunch.find(r=>r.type==='上班');
+  if(!inRec){toast('⚠️ 找不到當天的上班卡，請改用下方手動填寫上下班時間');return;}
+  const hasOut=dayPunch.some(r=>r.type==='下班'||r.type==='請假結束');
+  if(hasOut){toast('⚠️ 當天已經有下班卡了，不用重複補');return;}
+  const inMins=toMins(inRec.time);
+  const outMins=inMins+9*60;
+  const outTime=`${p2(Math.floor(outMins/60)%24)}:${p2(outMins%60)}`;
+  document.getElementById('mkInTime').value='';
+  document.getElementById('mkOutTime').value=outTime;
+  submitMakeup();
+}
+
 function submitMakeup(){
   if(!selEmp){toast('請先選擇員工');return;}
   const date=document.getElementById('mkDate').value;
@@ -1504,30 +1533,80 @@ function addEmp(){
 
 function delEmp(i){if(!confirm(`確定刪除 ${EMPS[i].name}？`))return;EMPS.splice(i,1);saveLoc();buildSels();renEmpList();toast('員工已刪除');}
 
+
+// 管理員：補上下班卡。兩邊都沒有時才用內建標準班 8:30/17:30；
+// 如果已經有其中一筆實際打卡，要補的那筆改用「已存在那筆的實際時間 ±9小時」推算，
+// 不能不管那筆實際時間幾點、就硬套標準班時間。
+function quickAdminStandardDay(){
+  const name=document.getElementById('adminEmpSel').value;
+  const date=document.getElementById('adminDate').value;
+  if(!name){toast('請選擇員工');return;}
+  if(!date){toast('請選擇日期');return;}
+  const emp=EMPS.find(e=>e.name===name)||{};
+  const dayPunch=getMergedPunch().filter(r=>r.name===name&&String(r.date)===date);
+  const inRec=dayPunch.find(r=>r.type==='上班');
+  const outRec=dayPunch.find(r=>r.type==='下班');
+  const hasIn=!!inRec||dayPunch.some(r=>r.type==='請假開始');
+  const hasOut=!!outRec||dayPunch.some(r=>r.type==='請假結束');
+  if(hasIn&&hasOut){toast('⚠️ 當天上下班卡都已經有了，不用重複補');return;}
+
+  let inTime='', outTime='';
+  if(inRec&&!hasOut){
+    // 已有上班的實際打卡時間，只補下班 → 用那筆時間+9小時
+    const outMins=toMins(inRec.time)+9*60;
+    outTime=`${p2(Math.floor(outMins/60)%24)}:${p2(outMins%60)}`;
+  }else if(outRec&&!hasIn){
+    // 已有下班的實際打卡時間，只補上班 → 用那筆時間-9小時
+    let inMins=toMins(outRec.time)-9*60;
+    if(inMins<0)inMins+=24*60;
+    inTime=`${p2(Math.floor(inMins/60))}:${p2(inMins%60)}`;
+  }else{
+    // 兩邊都還沒有任何記錄 → 用內建標準班時間
+    if(!hasIn)inTime='08:30';
+    if(!hasOut)outTime='17:30';
+  }
+
+  const adDate=new Date(date+'T00:00:00');
+  const adDow=adDate.getDay();
+  const adIsOT=(adDow===0||adDow===6)||isHoliday(date);
+  const adShift=adIsOT?'加班':'正常班';
+  const adStatus=adIsOT?'加班':'管理員補打';
+  if(inTime)localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:adStatus,shift:adShift});
+  if(outTime)localPunch.push({name,dept:emp.dept||'',date,type:'下班',time:outTime,status:adStatus,shift:adShift});
+  saveLoc();updPanel();
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'adminPunch',name,dept:emp.dept||'',date,inTime,outTime,isWeekend:adIsOT})}).catch(()=>{});
+  toast(`已為 ${name} 補打卡 ✅${inTime?' 上班：'+inTime:''}${outTime?' 下班：'+outTime:''}`);
+}
+
 function adminSinglePunch(){
   const name=document.getElementById('adminEmpSel').value;
   const date=document.getElementById('adminDate').value;
   const inTime=document.getElementById('adminInTime').value;
   const outTime=document.getElementById('adminOutTime').value;
   if(!name){toast('請選擇員工');return;}
-  if(!date||!inTime){toast('請填寫日期和上班時間');return;}
+  if(!date){toast('請選擇日期');return;}
+  if(!inTime&&!outTime){toast('請至少填上班或下班其中一個時間');return;}
   const emp=EMPS.find(e=>e.name===name)||{};
-  const im0=toMins(inTime);
-  if(im0<5*60||im0>22*60){toast('⚠️ 上班時間需在 05:00~22:00 之間');return;}
   const adDate=new Date(date+'T00:00:00');
   const adDow=adDate.getDay();
-  const adIsOT=(adDow===0||adDow===6)||isHoliday(date);
-  const adShift=adIsOT?'加班':'正常班';
-  const adStatus=adIsOT?'加班':'管理員補打';
+  let adShift='正常班', adStatus='管理員補打', adIsOT=false;
   let actualOut=outTime;
-  const isNormalIn=(im0>=CLOCKIN_MIN && im0<=CLOCKIN_MAX);
-  if(isNormalIn && !outTime){const expectedOut=im0+9*60;actualOut=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;}
-  else if(!isNormalIn && !outTime){toast('⚠️ 上班非正常時段（08:20~08:40），請一併填寫「下班時間」');return;}
-  localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:adStatus,shift:adShift});
+  // 只有要補上班時間時才需要檢查、推算下班時間；只補下班的話完全跳過這段
+  if(inTime){
+    const im0=toMins(inTime);
+    if(im0<5*60||im0>22*60){toast('⚠️ 上班時間需在 05:00~22:00 之間');return;}
+    adIsOT=(adDow===0||adDow===6)||isHoliday(date);
+    adShift=adIsOT?'加班':'正常班';
+    adStatus=adIsOT?'加班':'管理員補打';
+    const isNormalIn=(im0>=CLOCKIN_MIN && im0<=CLOCKIN_MAX);
+    if(isNormalIn && !outTime){const expectedOut=im0+9*60;actualOut=`${p2(Math.floor(expectedOut/60))}:${p2(expectedOut%60)}`;}
+    else if(!isNormalIn && !outTime){toast('⚠️ 上班非正常時段（08:20~08:40），請一併填寫「下班時間」');return;}
+  }
+  if(inTime)localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:adStatus,shift:adShift});
   if(actualOut)localPunch.push({name,dept:emp.dept||'',date,type:'下班',time:actualOut,status:adStatus,shift:adShift});
   saveLoc();updPanel();
   fetch(SURL,{method:'POST',body:JSON.stringify({action:'adminPunch',name,dept:emp.dept||'',date,inTime,outTime:actualOut,isWeekend:adIsOT})}).catch(()=>{});
-  toast(`已為 ${name} 補打卡 ✅${actualOut?' 下班時間：'+actualOut:''}`);
+  toast(`已為 ${name} 補打卡 ✅${inTime?' 上班時間：'+inTime:''}${actualOut?' 下班時間：'+actualOut:''}`);
 }
 
 function adminBatchPunch(){
