@@ -420,7 +420,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.10.02.2';
+const APP_VERSION='2026.10.02.3';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -547,6 +547,24 @@ function p2(n){return String(n).padStart(2,'0')}
 document.getElementById('headerDate').textContent=
   `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日（${WD[now.getDay()]}）`;
 (function(){const vt=document.getElementById('verTag');if(vt)vt.textContent='版本 '+APP_VERSION;})();
+
+// 記住管理員各工具上次輸入的年/月，下次開啟自動帶入
+function saveYM(key, year, month){
+  try{ localStorage.setItem('lastYM_'+key, year+'-'+month); }catch(e){}
+}
+function restoreYM(key, yearId, monthId){
+  try{
+    const v = localStorage.getItem('lastYM_'+key);
+    if(!v) return;
+    const parts = v.split('-');
+    const ey = document.getElementById(yearId), em = document.getElementById(monthId);
+    if(ey && parts[0]) ey.value = parts[0];
+    if(em && parts[1]) em.value = parts[1];
+  }catch(e){}
+}
+restoreYM('mr','mrYear','mrMonth');
+restoreYM('av','avYear','avMonth');
+restoreYM('ar','arYear','arMonth');
 ['leaveDate','otDate','mkDate','adminDate','batchStartDate','editDate','checkDate','attDate','attStart','attEnd'].forEach(id=>{
   const el=document.getElementById(id);if(el)el.value=today;
 });
@@ -1644,6 +1662,7 @@ function rebuildAttendanceRange(){
 function buildMonthlyReport(){
   const year=document.getElementById('mrYear').value;
   const month=document.getElementById('mrMonth').value;
+  saveYM('mr', year, month);
   const res=document.getElementById('mrResult');
   if(!year||!month){res.textContent='⚠️ 請輸入年和月';res.style.color='#B5701F';return;}
   res.textContent='⏳ 計算中，請稍候…';res.style.color='#888';
@@ -1659,6 +1678,7 @@ function buildMonthlyReport(){
 function carryForward(){
   const year=document.getElementById('mrYear').value;
   const month=document.getElementById('mrMonth').value;
+  saveYM('mr', year, month);
   const res=document.getElementById('cfResult');
   if(!year||!month){res.textContent='⚠️ 請先輸入上方的年和月';res.style.color='#B5701F';return;}
   if(!confirm(`確定要把 ${year}年${month}月 的期末餘額，結轉為次月的期初結存嗎？\n\n（系統會先重算該月結存，確保用最新資料）`))return;
@@ -1675,6 +1695,7 @@ function carryForward(){
 function archiveMonth(){
   const year=document.getElementById('avYear').value;
   const month=document.getElementById('avMonth').value;
+  saveYM('av', year, month);
   const res=document.getElementById('avResult');
   if(!year||!month){res.textContent='⚠️ 請輸入年和月';res.style.color='#B5701F';return;}
   if(!confirm(`確定要封存 ${year}年${month}月 的資料嗎？\n\n・會備份全部分頁到雲端硬碟「佑安打卡封存」\n・若同月已有封存檔，會刪除舊檔重新產生\n・原試算表資料不會被刪除`))return;
@@ -1693,6 +1714,7 @@ function archiveMonth(){
 function archiveOldRecordsToTab(){
   const year=document.getElementById('arYear').value;
   const month=document.getElementById('arMonth').value;
+  saveYM('ar', year, month);
   const res=document.getElementById('arResult');
   if(!year||!month){res.textContent='⚠️ 請輸入年和月';res.style.color='#B5701F';return;}
   if(!confirm(`確定要搬移 ${year}年${month}月（含）以前的「打卡記錄、請假記錄、加班記錄」到封存分頁嗎？\n\n・資料會移到 打卡記錄_封存／請假記錄_封存／加班記錄_封存 這幾個分頁\n・原分頁會刪除這些資料列\n・此動作無法復原，請先確認該期間已完成雲端硬碟封存備份`))return;
