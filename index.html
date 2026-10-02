@@ -426,7 +426,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.10.02.8';
+const APP_VERSION='2026.10.02.10';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -447,7 +447,7 @@ const SURL='https://script.google.com/macros/s/AKfycby7sJ9kkBp-4LTSzPCyQykzjS-QS
 const HOLIDAYS_2026=new Set([
   '2026-01-01','2026-01-28','2026-01-29','2026-01-30','2026-01-31',
   '2026-02-01','2026-02-02','2026-02-27','2026-02-28','2026-04-03',
-  '2026-04-04','2026-05-01','2026-06-19','2026-09-28','2026-10-09',
+  '2026-04-04','2026-05-01','2026-06-19','2026-09-25','2026-09-28','2026-10-09',
   '2026-10-10','2026-10-25','2026-10-26','2026-12-25',
 ]);
 
@@ -1087,17 +1087,21 @@ function quickMakeupOutOnly(){
     const tmr=new Date();tmr.setHours(0,0,0,0);tmr.setDate(tmr.getDate()+1);
     if(sel.getTime()>tmr.getTime()){toast('⚠️ 補打卡最遠只能補到明天，不能補後天以後的日期');return;}
   }
-  const dayPunch=getMergedPunch().filter(r=>r.name===selEmp&&String(r.date)===date);
-  const inRec=dayPunch.find(r=>r.type==='上班');
-  if(!inRec){toast('⚠️ 找不到當天的上班卡，請改用下方手動填寫上下班時間');return;}
-  const hasOut=dayPunch.some(r=>r.type==='下班'||r.type==='請假結束');
-  if(hasOut){toast('⚠️ 當天已經有下班卡了，不用重複補');return;}
-  const inMins=toMins(inRec.time);
-  const outMins=inMins+9*60;
-  const outTime=`${p2(Math.floor(outMins/60)%24)}:${p2(outMins%60)}`;
-  document.getElementById('mkInTime').value='';
-  document.getElementById('mkOutTime').value=outTime;
-  submitMakeup();
+  // ★ 先重新跟伺服器要一次最新資料，避免用到過期的本地快取
+  toast('查詢最新資料中…');
+  loadCloud(()=>{
+    const dayPunch=getMergedPunch().filter(r=>r.name===selEmp&&String(r.date)===date);
+    const inRec=dayPunch.find(r=>r.type==='上班');
+    if(!inRec){toast('⚠️ 找不到當天的上班卡，請改用下方手動填寫上下班時間');return;}
+    const hasOut=dayPunch.some(r=>r.type==='下班'||r.type==='請假結束');
+    if(hasOut){toast('⚠️ 當天已經有下班卡了，不用重複補');return;}
+    const inMins=toMins(inRec.time);
+    const outMins=inMins+9*60;
+    const outTime=`${p2(Math.floor(outMins/60)%24)}:${p2(outMins%60)}`;
+    document.getElementById('mkInTime').value='';
+    document.getElementById('mkOutTime').value=outTime;
+    submitMakeup();
+  });
 }
 
 function submitMakeup(){
@@ -1542,40 +1546,45 @@ function quickAdminStandardDay(){
   const date=document.getElementById('adminDate').value;
   if(!name){toast('請選擇員工');return;}
   if(!date){toast('請選擇日期');return;}
-  const emp=EMPS.find(e=>e.name===name)||{};
-  const dayPunch=getMergedPunch().filter(r=>r.name===name&&String(r.date)===date);
-  const inRec=dayPunch.find(r=>r.type==='上班');
-  const outRec=dayPunch.find(r=>r.type==='下班');
-  const hasIn=!!inRec||dayPunch.some(r=>r.type==='請假開始');
-  const hasOut=!!outRec||dayPunch.some(r=>r.type==='請假結束');
-  if(hasIn&&hasOut){toast('⚠️ 當天上下班卡都已經有了，不用重複補');return;}
+  // ★ 先跟伺服器重新要一次最新資料，避免用到瀏覽器裡過期的快取、
+  //   誤判成「已經有打卡」而擋掉真正該補的那筆。
+  toast('查詢最新資料中…');
+  loadCloud(()=>{
+    const emp=EMPS.find(e=>e.name===name)||{};
+    const dayPunch=getMergedPunch().filter(r=>r.name===name&&String(r.date)===date);
+    const inRec=dayPunch.find(r=>r.type==='上班');
+    const outRec=dayPunch.find(r=>r.type==='下班');
+    const hasIn=!!inRec||dayPunch.some(r=>r.type==='請假開始');
+    const hasOut=!!outRec||dayPunch.some(r=>r.type==='請假結束');
+    if(hasIn&&hasOut){toast('⚠️ 當天上下班卡都已經有了，不用重複補');return;}
 
-  let inTime='', outTime='';
-  if(inRec&&!hasOut){
-    // 已有上班的實際打卡時間，只補下班 → 用那筆時間+9小時
-    const outMins=toMins(inRec.time)+9*60;
-    outTime=`${p2(Math.floor(outMins/60)%24)}:${p2(outMins%60)}`;
-  }else if(outRec&&!hasIn){
-    // 已有下班的實際打卡時間，只補上班 → 用那筆時間-9小時
-    let inMins=toMins(outRec.time)-9*60;
-    if(inMins<0)inMins+=24*60;
-    inTime=`${p2(Math.floor(inMins/60))}:${p2(inMins%60)}`;
-  }else{
-    // 兩邊都還沒有任何記錄 → 用內建標準班時間
-    if(!hasIn)inTime='08:30';
-    if(!hasOut)outTime='17:30';
-  }
+    let inTime='', outTime='';
+    if(inRec&&!hasOut){
+      // 已有上班的實際打卡時間，只補下班 → 用那筆時間+9小時
+      const outMins=toMins(inRec.time)+9*60;
+      outTime=`${p2(Math.floor(outMins/60)%24)}:${p2(outMins%60)}`;
+    }else if(outRec&&!hasIn){
+      // 已有下班的實際打卡時間，只補上班 → 用那筆時間-9小時
+      let inMins=toMins(outRec.time)-9*60;
+      if(inMins<0)inMins+=24*60;
+      inTime=`${p2(Math.floor(inMins/60))}:${p2(inMins%60)}`;
+    }else{
+      // 兩邊都還沒有任何記錄 → 用內建標準班時間
+      if(!hasIn)inTime='08:30';
+      if(!hasOut)outTime='17:30';
+    }
 
-  const adDate=new Date(date+'T00:00:00');
-  const adDow=adDate.getDay();
-  const adIsOT=(adDow===0||adDow===6)||isHoliday(date);
-  const adShift=adIsOT?'加班':'正常班';
-  const adStatus=adIsOT?'加班':'管理員補打';
-  if(inTime)localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:adStatus,shift:adShift});
-  if(outTime)localPunch.push({name,dept:emp.dept||'',date,type:'下班',time:outTime,status:adStatus,shift:adShift});
-  saveLoc();updPanel();
-  fetch(SURL,{method:'POST',body:JSON.stringify({action:'adminPunch',name,dept:emp.dept||'',date,inTime,outTime,isWeekend:adIsOT})}).catch(()=>{});
-  toast(`已為 ${name} 補打卡 ✅${inTime?' 上班：'+inTime:''}${outTime?' 下班：'+outTime:''}`);
+    const adDate=new Date(date+'T00:00:00');
+    const adDow=adDate.getDay();
+    const adIsOT=(adDow===0||adDow===6)||isHoliday(date);
+    const adShift=adIsOT?'加班':'正常班';
+    const adStatus=adIsOT?'加班':'管理員補打';
+    if(inTime)localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:adStatus,shift:adShift});
+    if(outTime)localPunch.push({name,dept:emp.dept||'',date,type:'下班',time:outTime,status:adStatus,shift:adShift});
+    saveLoc();updPanel();
+    fetch(SURL,{method:'POST',body:JSON.stringify({action:'adminPunch',name,dept:emp.dept||'',date,inTime,outTime,isWeekend:adIsOT})}).catch(()=>{});
+    toast(`已為 ${name} 補打卡 ✅${inTime?' 上班：'+inTime:''}${outTime?' 下班：'+outTime:''}`);
+  });
 }
 
 function adminSinglePunch(){
