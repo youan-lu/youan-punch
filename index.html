@@ -268,6 +268,12 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
   </div>
   <div id="adminPanel" style="display:none">
     <div class="card">
+      <div class="card-title">⚙️ 請假／加班 審核方式</div>
+      <div id="aaStatus" style="font-size:14px;font-weight:700;margin:4px 0 8px">讀取中…</div>
+      <div style="font-size:12px;color:#888;margin-bottom:8px">自動：申請超過1小時未審核，系統自動核准。<br>手動：一律等管理員按核准／駁回。</div>
+      <button class="big-btn" id="aaBtn" onclick="toggleAutoApprove()">切換</button>
+    </div>
+    <div class="card">
       <div class="card-title">✏️ 修改打卡記錄</div>
       <label>員工</label><select id="editEmpSel" onchange="loadEditPunch()"></select>
       <label>日期</label><input type="date" id="editDate" onchange="loadEditPunch()">
@@ -426,7 +432,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.10.02.10';
+const APP_VERSION='2026.10.21.1';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -695,6 +701,8 @@ function loadCloud(cb){
         cloudPunch=d.punch||[];
         cloudLeave=d.leave||[];
         cloudOT=d.overtime||[];
+        AUTO_APPROVE=(d.autoApprove==='auto');
+        renAutoApproveCard();
         if(d.employees&&d.employees.length){
           EMPS=d.employees.map(e=>({name:e.name,dept:e.dept,empNo:e.empNo||'',quitted:!!e.quitted}));
           localStorage.setItem(LS_EMPS,JSON.stringify(EMPS));
@@ -1017,6 +1025,7 @@ function submitLeave(){
 }
 
 function autoApproveLeave(id){
+  if(!AUTO_APPROVE)return;
   const lr=localLeave.find(x=>String(x.id)===String(id));
   const cr=cloudLeave.find(x=>String(x.id)===String(id));
   const target=lr||cr;
@@ -1063,6 +1072,7 @@ function submitOT(){
 }
 
 function autoApproveOT(id){
+  if(!AUTO_APPROVE)return;
   const lr=localOT.find(x=>String(x.id)===String(id));
   const cr=cloudOT.find(x=>String(x.id)===String(id));
   const target=lr||cr;
@@ -1306,6 +1316,24 @@ function updPend(){
   document.getElementById('pendDot').style.display=n>0?'inline-block':'none';
 }
 
+let AUTO_APPROVE=false;
+function renAutoApproveCard(){
+  const s=document.getElementById('aaStatus'),b=document.getElementById('aaBtn');
+  if(!s||!b)return;
+  if(AUTO_APPROVE){s.textContent='目前：🟢 自動核准（超過1小時未審核）';s.style.color='#4A9460';b.textContent='改為手動核准';}
+  else{s.textContent='目前：🔴 手動核准（需管理員審核）';s.style.color='#C75B47';b.textContent='改為自動核准';}
+}
+function toggleAutoApprove(){
+  const to=AUTO_APPROVE?'manual':'auto';
+  const msg=to==='auto'?'改為「自動核准」？\n超過1小時的待審核請假／加班單（含目前已累積的）會被自動核准。':'改為「手動核准」？\n之後請假／加班都要管理員手動核准。';
+  if(!confirm(msg))return;
+  const s=document.getElementById('aaStatus');s.textContent='⏳ 切換中…';s.style.color='#888';
+  fetch(SURL,{method:'POST',body:JSON.stringify({action:'setAutoApprove',mode:to})})
+    .then(r=>r.json()).then(d=>{
+      if(d.success){AUTO_APPROVE=(d.mode==='auto');renAutoApproveCard();toast(AUTO_APPROVE?'已改為自動核准 ✅':'已改為手動核准 ✅');}
+      else{renAutoApproveCard();toast('❌ '+(d.msg||'切換失敗'));}
+    }).catch(()=>{renAutoApproveCard();toast('⚠️ 網路錯誤');});
+}
 function adminLogin(){
   const pw=document.getElementById('adminPwd').value;
   if(!pw){toast('請輸入密碼');return;}
