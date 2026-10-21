@@ -432,7 +432,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.10.21.1';
+const APP_VERSION='2026.10.21.2';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
@@ -449,7 +449,7 @@ const APP_VERSION='2026.10.21.1';
 const SURL='https://script.google.com/macros/s/AKfycby7sJ9kkBp-4LTSzPCyQykzjS-QSb1egYAxSEQSy_VTpHE93S4Ax6RPHxri95ZTWZcP/exec';
 // 管理員密碼已改存試算表「設定」工作表（adminPass，預設 8888），不再前端寫死
 
-// 2026年台灣國定假日（包含補假）
+// 2026國定假日（連線失敗時的備援；正式清單由後端「國定假日」分頁經 getData 帶回）
 const HOLIDAYS_2026=new Set([
   '2026-01-01','2026-01-28','2026-01-29','2026-01-30','2026-01-31',
   '2026-02-01','2026-02-02','2026-02-27','2026-02-28','2026-04-03',
@@ -457,7 +457,17 @@ const HOLIDAYS_2026=new Set([
   '2026-10-10','2026-10-25','2026-10-26','2026-12-25',
 ]);
 
-function isHoliday(dateStr){return HOLIDAYS_2026.has(dateStr);}
+// 實際使用的清單：預設＝上面的備援，getData 回來後以分頁內容覆蓋
+let HOLIDAYS=new Set(HOLIDAYS_2026);
+let MAKEUP_WORKDAYS=new Set();
+function isHoliday(dateStr){return HOLIDAYS.has(dateStr);}
+function isMakeupWorkday(dateStr){return MAKEUP_WORKDAYS.has(dateStr);}
+// 假日加班日＝放假日，或（週末且非補班日）；補班的週六算正常上班、不算假日加班
+function isOTDate(dateStr){
+  const dw=new Date(dateStr+'T00:00:00').getDay();
+  const weekend=(dw===0||dw===6);
+  return isHoliday(dateStr)||(weekend&&!isMakeupWorkday(dateStr));
+}
 
 const DEF=[
   {name:'駱潔明',dept:'業務負責人'},{name:'蒲麗玉',dept:'行政人員'},
@@ -702,6 +712,8 @@ function loadCloud(cb){
         cloudLeave=d.leave||[];
         cloudOT=d.overtime||[];
         AUTO_APPROVE=(d.autoApprove==='auto');
+        if(Array.isArray(d.holidays))HOLIDAYS=new Set(d.holidays);
+        if(Array.isArray(d.makeupWorkdays))MAKEUP_WORKDAYS=new Set(d.makeupWorkdays);
         renAutoApproveCard();
         if(d.employees&&d.employees.length){
           EMPS=d.employees.map(e=>({name:e.name,dept:e.dept,empNo:e.empNo||'',quitted:!!e.quitted}));
@@ -887,8 +899,7 @@ function updPanel(){
   document.getElementById('recIn').textContent=rec.in||'—';
   document.getElementById('recOut').textContent=rec.out||'—';
   if(rec.in&&rec.out){
-    const dow=new Date(today+'T00:00:00').getDay();
-    const isWeekend=(dow===0||dow===6);
+    const isWeekend=isOTDate(today);
     const inM=toMins(rec.in),outM=toMins(rec.out);
     if(isWeekend){
       const mins=calcWeekendHours(inM,outM);
@@ -917,10 +928,7 @@ function punch(type){
   const d=new Date();
   const nowMins=d.getHours()*60+d.getMinutes();
   const ts=`${p2(d.getHours())}:${p2(d.getMinutes())}`;
-  const dow=d.getDay();
-  const isWeekend=(dow===0||dow===6);
-  const isHol=isHoliday(today);
-  const isOTDay=isWeekend||isHol;
+  const isOTDay=isOTDate(today);
   const shift=isOTDay?'加班':'正常班';
   const status=isOTDay?'加班':'正常';
   if(type==='in'){
@@ -1135,7 +1143,7 @@ function submitMakeup(){
   }
   const mkDate=new Date(date+'T00:00:00');
   const mkDow=mkDate.getDay();
-  const mkIsOT=(mkDow===0||mkDow===6)||isHoliday(date);
+  const mkIsOT=isOTDate(date);
   const mkShift=mkIsOT?'加班':'正常班';
   const mkStatus=mkIsOT?'加班':'補登';
   let actualOutTime=outTime;
@@ -1453,7 +1461,7 @@ function loadEditPunch(){
 
 function doEditPunch(name,date,type,dept,oldTime,oldShift){
   const ed=new Date(date+'T00:00:00');
-  const edIsOT=(ed.getDay()===0||ed.getDay()===6)||isHoliday(date);
+  const edIsOT=isOTDate(date);
   const rec={name,date,type,dept,time:oldTime,shift:oldShift||(edIsOT?'加班':'正常班')};
   openEditModal({kind:'打卡',rec,byEmployee:false,after:loadEditPunch});
 }
@@ -1461,7 +1469,7 @@ function doEditPunch(name,date,type,dept,oldTime,oldShift){
 function doSaveAdminPunchEdit(r,newTime,shift,after){
   const name=r.name,date=r.date,type=r.type,dept=r.dept||'';
   const ed=new Date(date+'T00:00:00');
-  const edIsOT=(ed.getDay()===0||ed.getDay()===6)||isHoliday(date);
+  const edIsOT=isOTDate(date);
   const lp=localPunch.find(p=>p.name===name&&String(p.date)===date&&p.type===type&&p.time===r.time);
   if(lp){lp.time=newTime;lp.status='管理員修改';lp.shift=shift;}
   else localPunch.push({name,dept,date,type,time:newTime,status:'管理員修改',shift});
@@ -1604,7 +1612,7 @@ function quickAdminStandardDay(){
 
     const adDate=new Date(date+'T00:00:00');
     const adDow=adDate.getDay();
-    const adIsOT=(adDow===0||adDow===6)||isHoliday(date);
+    const adIsOT=isOTDate(date);
     const adShift=adIsOT?'加班':'正常班';
     const adStatus=adIsOT?'加班':'管理員補打';
     if(inTime)localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:adStatus,shift:adShift});
@@ -1632,7 +1640,7 @@ function adminSinglePunch(){
   if(inTime){
     const im0=toMins(inTime);
     if(im0<5*60||im0>22*60){toast('⚠️ 上班時間需在 05:00~22:00 之間');return;}
-    adIsOT=(adDow===0||adDow===6)||isHoliday(date);
+    adIsOT=isOTDate(date);
     adShift=adIsOT?'加班':'正常班';
     adStatus=adIsOT?'加班':'管理員補打';
     const isNormalIn=(im0>=CLOCKIN_MIN && im0<=CLOCKIN_MAX);
@@ -1665,8 +1673,7 @@ function adminBatchPunch(){
   if(!dates.length){toast('所選週內無符合日期');return;}
   const emp=EMPS.find(e=>e.name===name)||{};
   dates.forEach(date=>{
-    const mkDate=new Date(date+'T00:00:00');
-    const isWeekend=(mkDate.getDay()===0||mkDate.getDay()===6);
+    const isWeekend=isOTDate(date);
     if(inTime)localPunch.push({name,dept:emp.dept||'',date,type:'上班',time:inTime,status:'批次補打',shift:getPunchShift(toMins(inTime),isWeekend)});
     if(outTime)localPunch.push({name,dept:emp.dept||'',date,type:'下班',time:outTime,status:'批次補打',shift:getPunchShift(toMins(outTime),isWeekend)});
   });
