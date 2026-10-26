@@ -274,58 +274,12 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
       <button class="big-btn" id="aaBtn" onclick="toggleAutoApprove()">切換</button>
     </div>
     <div class="card">
-      <div class="card-title">✏️ 修改打卡記錄</div>
-      <label>員工</label><select id="editEmpSel" onchange="loadEditPunch()"></select>
-      <label>日期</label><input type="date" id="editDate" onchange="loadEditPunch()">
-      <div id="editPunchList" style="margin-top:12px"></div>
+      <div class="card-title">📋 待審核請假 <span id="lvCount" style="color:#B5701F"></span></div>
+      <div id="reviewLeave"></div>
     </div>
     <div class="card">
-      <div class="card-title">➕ 代員工新增請假</div>
-      <label>員工</label><select id="alEmpSel"></select>
-      <label>假別</label><select id="alType"><option>特休</option><option>補休</option><option>病假</option><option>事假</option><option>婚假</option><option>喪假</option><option>產假</option><option>陪產檢假</option><option>公假</option><option>天然災害假</option><option>歲時祭儀</option><option>其他</option></select>
-      <label>日期</label><input type="date" id="alDate">
-      <div class="grid2">
-        <div><label>開始時間</label><input type="time" id="alStart" value="08:20"></div>
-        <div><label>結束時間</label><input type="time" id="alEnd" value="17:20"></div>
-      </div>
-      <label>原因說明（非必填）</label>
-      <textarea id="alReason" rows="2" placeholder="可不填…"></textarea>
-      <button class="big-btn big-btn-green" style="margin-top:8px" onclick="adminAddLeave()">➕ 新增並核准</button>
-      <div id="alResult" style="margin-top:8px;font-size:13px;font-weight:600"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">➕ 代員工新增加班</div>
-      <label>員工</label><select id="aoEmpSel"></select>
-      <label>類型</label><select id="aoType"><option>平常日</option><option>假日</option></select>
-      <label>日期</label><input type="date" id="aoDate">
-      <div class="grid2">
-        <div><label>開始時間</label><input type="time" id="aoStart" value="18:00"></div>
-        <div><label>結束時間</label><input type="time" id="aoEnd" value="20:00"></div>
-      </div>
-      <label>原因說明（非必填）</label>
-      <textarea id="aoReason" rows="2" placeholder="可不填…"></textarea>
-      <button class="big-btn big-btn-green" style="margin-top:8px" onclick="adminAddOvertime()">➕ 新增並核准</button>
-      <div id="aoResult" style="margin-top:8px;font-size:13px;font-weight:600"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">📋 修改請假記錄</div>
-      <label>員工</label><select id="editLvEmpSel" onchange="loadEditLeave()"></select>
-      <div id="editLeaveList" style="margin-top:12px"><p style="color:#888;font-size:14px">請選擇員工</p></div>
-    </div>
-    <div class="card">
-      <div class="card-title">⏰ 修改加班記錄</div>
-      <label>員工</label><select id="editOtEmpSel" onchange="loadEditOT()"></select>
-      <div id="editOTList" style="margin-top:12px"><p style="color:#888;font-size:14px">請選擇員工</p></div>
-    </div>
-    <div class="card">
-      <div class="card-title">👥 員工名單</div>
-      <div id="empList"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">➕ 新增員工</div>
-      <label>職稱</label><input type="text" id="newDept" placeholder="例：行政人員">
-      <label>姓名</label><input type="text" id="newName" placeholder="例：王小明">
-      <button class="big-btn" onclick="addEmp()">✓ 新增員工</button>
+      <div class="card-title">⏰ 待審核加班 <span id="otCount" style="color:#B5701F"></span></div>
+      <div id="reviewOT"></div>
     </div>
     <div class="card">
       <div class="card-title">🔄 補打卡（單日）</div>
@@ -360,12 +314,63 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
       <button class="big-btn big-btn-amber" onclick="adminBatchPunch()">📆 批次補打卡</button>
     </div>
     <div class="card">
-      <div class="card-title">📋 待審核請假 <span id="lvCount" style="color:#B5701F"></span></div>
-      <div id="reviewLeave"></div>
+      <div class="card-title">✏️ 修改打卡記錄</div>
+      <label>員工</label><select id="editEmpSel" onchange="loadEditPunch()"></select>
+      <label>日期</label><input type="date" id="editDate" onchange="loadEditPunch()">
+      <div id="editPunchList" style="margin-top:12px"></div>
     </div>
     <div class="card">
-      <div class="card-title">⏰ 待審核加班 <span id="otCount" style="color:#B5701F"></span></div>
-      <div id="reviewOT"></div>
+      <div class="card-title">➕ 代員工新增請假</div>
+      <label>員工</label><select id="alEmpSel"></select>
+      <label>假別</label><select id="alType"><option>特休</option><option>補休</option><option>病假</option><option>事假</option><option>婚假</option><option>喪假</option><option>產假</option><option>陪產檢假</option><option>公假</option><option>天然災害假</option><option>歲時祭儀</option><option>其他</option></select>
+      <label>日期</label><input type="date" id="alDate">
+      <div class="grid2">
+        <div><label>開始時間</label><input type="time" id="alStart" value="08:20"></div>
+        <div><label>結束時間</label><input type="time" id="alEnd" value="17:20"></div>
+      </div>
+      <label>原因說明（非必填）</label>
+      <textarea id="alReason" rows="2" placeholder="可不填…"></textarea>
+      <button class="big-btn big-btn-green" style="margin-top:8px" onclick="adminAddLeave()">➕ 新增並核准</button>
+      <div id="alResult" style="margin-top:8px;font-size:13px;font-weight:600"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 修改請假記錄</div>
+      <label>員工</label><select id="editLvEmpSel" onchange="loadEditLeave()"></select>
+      <div id="editLeaveList" style="margin-top:12px"><p style="color:#888;font-size:14px">請選擇員工</p></div>
+    </div>
+    <div class="card">
+      <div class="card-title">➕ 代員工新增加班</div>
+      <label>員工</label><select id="aoEmpSel"></select>
+      <label>類型</label><select id="aoType"><option>平常日</option><option>假日</option></select>
+      <label>日期</label><input type="date" id="aoDate">
+      <div class="grid2">
+        <div><label>開始時間</label><input type="time" id="aoStart" value="18:00"></div>
+        <div><label>結束時間</label><input type="time" id="aoEnd" value="20:00"></div>
+      </div>
+      <label>原因說明（非必填）</label>
+      <textarea id="aoReason" rows="2" placeholder="可不填…"></textarea>
+      <button class="big-btn big-btn-green" style="margin-top:8px" onclick="adminAddOvertime()">➕ 新增並核准</button>
+      <div id="aoResult" style="margin-top:8px;font-size:13px;font-weight:600"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">⏰ 修改加班記錄</div>
+      <label>員工</label><select id="editOtEmpSel" onchange="loadEditOT()"></select>
+      <div id="editOTList" style="margin-top:12px"><p style="color:#888;font-size:14px">請選擇員工</p></div>
+    </div>
+    <div class="card">
+      <div class="card-title">👥 員工名單</div>
+      <div id="empList"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">➕ 新增員工</div>
+      <label>職稱</label><input type="text" id="newDept" placeholder="例：行政人員">
+      <label>姓名</label><input type="text" id="newName" placeholder="例：王小明">
+      <button class="big-btn" onclick="addEmp()">✓ 新增員工</button>
+    </div>
+    <div class="card">
+      <div class="card-title">♻️ 重設員工密碼</div>
+      <label>員工</label><select id="resetEmpSel"><option value="">-- 請選擇員工 --</option></select>
+      <button class="big-btn" style="background:#C08A3A" onclick="doResetEmpPwd()">♻️ 重設為 0000</button>
     </div>
     <div class="card">
       <div class="card-title">📊 每日出勤統計</div>
@@ -421,11 +426,6 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
       <label>新密碼</label><input type="password" id="apNew" placeholder="至少 4 碼">
       <button class="big-btn" onclick="doSetAdminPass()">✓ 修改管理員密碼</button>
     </div>
-    <div class="card">
-      <div class="card-title">♻️ 重設員工密碼</div>
-      <label>員工</label><select id="resetEmpSel"><option value="">-- 請選擇員工 --</option></select>
-      <button class="big-btn" style="background:#C08A3A" onclick="doResetEmpPwd()">♻️ 重設為 0000</button>
-    </div>
     <div style="padding:0 0 20px">
       <button class="warn-btn" onclick="adminLogout()">登出管理員</button>
     </div>
@@ -446,7 +446,7 @@ select,input,textarea{width:100%;padding:12px 14px;border:2px solid #D7E2D4;bord
 
 <script>
 // ===== 版本號：每次更新程式時，把這個數字加 1 =====
-const APP_VERSION='2026.10.26.2';
+const APP_VERSION='2026.10.26.3';
 (function(){
   try{
     const saved=localStorage.getItem('app_ver');
